@@ -1,0 +1,2 @@
+bento_exe("helloWorld" "tests" "helloWorld.cpp" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${BENTO_SDK_INCLUDE}")
+target_link_libraries("helloWorld" "graphics_sandbox_sdk" "bento_sdk" "${D3D12_LIBRARIES}")
