@@ -12,17 +12,35 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     settings.data[0] = (uint64_t)hInstance;
     RenderEnvironment renderEnvironment = d3d12::render_system::create_render_environment(settings);
 
+    // Create the command buffer
+    CommandBuffer cmd = d3d12::command_buffer::create_command_buffer(renderEnvironment);
+
+    // Create a fence
+    Fence fence = d3d12::graphics_fence::create_fence(renderEnvironment);
+    FenceEvent fenceEvent = d3d12::graphics_fence::create_fence_event();
+
     // Grab the render window
     RenderWindow renderWindow = d3d12::render_system::render_window(renderEnvironment);
 
     // Show the window
     d3d12::window::show(renderWindow);
 
-    // Create the command buffer
-    CommandBuffer cmd = d3d12::command_buffer::create_command_buffer(renderEnvironment);
+    // Render loop
+    MSG msg = {};
+    while (msg.message != WM_QUIT)
+    {
+        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+        {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+    }
 
-    // Create a fence
-    Fence fence = d3d12::graphics_fence::create_fence(renderEnvironment);
+    // Make sure the command queue has finished all commands before closing.
+    Flush(g_CommandQueue, g_Fence, g_FenceValue, g_FenceEvent);
+
+    // destroy fence event
+    d3d12::graphics_fence::destroy_fence_event(fenceEvent);
 
     // Destroy the fence
     d3d12::graphics_fence::destroy_fence(fence);

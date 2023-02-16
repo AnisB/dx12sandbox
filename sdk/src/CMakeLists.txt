@@ -17,4 +17,4 @@ foreach(source_dir ${sub_projects_sources})
 endforeach()
 
 # Generate the static library
-bento_static_lib("graphics_sandbox_sdk" "sdk" "${header_files};${source_files};" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${GRAPHICS_SANDBOX_3RD_LIBRARIES};${BENTO_SDK_ROOT}/include;${D3D12_INCLUDE_DIRS}")
+bento_static_lib("graphics_sandbox_sdk" "sdk" "${header_files};${source_files};" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${GRAPHICS_SANDBOX_3RD_INCLUDES};${BENTO_SDK_ROOT}/include;${D3D12_INCLUDE_DIRS}")

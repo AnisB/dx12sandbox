@@ -19,4 +19,5 @@ namespace graphics_sandbox
 	typedef uint64_t RenderWindow;
 	typedef uint64_t CommandBuffer;
 	typedef uint64_t Fence;
+	typedef uint64_t FenceEvent;
 }

@@ -3,13 +3,13 @@
 #include <bento_memory/common.h>
 
 // DX12 and windows includes
-#include <Windows.h>
-#include <shellapi.h>
-#include <wrl/client.h>
 #include <d3d12.h>
+#include <d3dx12.h>
 #include <dxgi1_6.h>
 #include <d3dcompiler.h>
 #include <DirectXMath.h>
+#include <Windows.h>
+
 
 // Generic includes
 #include <algorithm>
@@ -18,7 +18,6 @@
 #include "gpu_backend/dx12_backend.h"
 
 // Required for ComPtr
-using namespace Microsoft::WRL;
 #define DX12_NUM_FRAMES 3
 
 LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
@@ -66,33 +65,12 @@ namespace graphics_sandbox
 			IDXGISwapChain4* swapChain;
 			uint32_t currentBackBuffer;
 
-			/*
+			// Description heap required for the swap chain
+			ID3D12DescriptorHeap* descriptorHeap;
+			uint32_t rtvDescriptorSize;
+
 			// Back Buffers
-			ComPtr<ID3D12Resource> backBuffer[DX12_NUM_FRAMES];
-			UINT g_CurrentBackBufferIndex;
-
-			// Command list
-			ComPtr<ID3D12GraphicsCommandList> commandList;
-			ComPtr<ID3D12CommandAllocator> commandAllocators[DX12_NUM_FRAMES];
-
-			// Description heap
-			ComPtr<ID3D12DescriptorHeap> descriptionHeap;
-			UINT g_RTVDescriptorSize;
-
-			// Fences
-			ComPtr<ID3D12Fence> g_Fence;
-			uint64_t g_FenceValue = 0;
-			uint64_t g_FrameFenceValues[DX12_NUM_FRAMES] = {};
-			HANDLE g_FenceEvent;
-
-			// By default, enable V-Sync.
-			// Can be toggled with the V key.
-			bool g_VSync = true;
-			bool g_TearingSupported = false;
-			// By default, use windowed mode.
-			// Can be toggled with the Alt+Enter or F11
-			bool g_Fullscreen = false;
-			*/
+			ID3D12Resource* backBufferRenderTargetViews[DX12_NUM_FRAMES];
 		};
 
 		// Function to enable the debug layer
@@ -163,16 +141,16 @@ namespace graphics_sandbox
 
 		// On DX12 to create a graphics device, we need to fetch the adapter of the right device.
 		// This is what this function does
-		ComPtr<IDXGIAdapter4> GetAdapter()
+		IDXGIAdapter4* GetAdapter()
 		{
 			// Create the DXGI factory
-			ComPtr<IDXGIFactory4> dxgiFactory;
+			IDXGIFactory4* dxgiFactory;
 			UINT createFactoryFlags = 0;
 			assert_msg(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory)) == S_OK, "DXGI Factory 2 failed.");
 
 			// Loop through all the available dapters
-			ComPtr<IDXGIAdapter1> dxgiAdapter1;
-			ComPtr<IDXGIAdapter4> dxgiAdapter4;
+			IDXGIAdapter1* dxgiAdapter1;
+			IDXGIAdapter4* dxgiAdapter4;
 			SIZE_T maxDedicatedVideoMemory = 0;
 			for (UINT i = 0; dxgiFactory->EnumAdapters1(i, &dxgiAdapter1) != DXGI_ERROR_NOT_FOUND; ++i)
 			{
@@ -180,32 +158,40 @@ namespace graphics_sandbox
 				dxgiAdapter1->GetDesc1(&dxgiAdapterDesc1);
 
 				// Check to see if the adapter can create a D3D12 device without actually creating it. The adapter with the largest dedicated video memory is favored.
-				if ((dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 && SUCCEEDED(D3D12CreateDevice(dxgiAdapter1.Get(), D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)) &&
+				if ((dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 && SUCCEEDED(D3D12CreateDevice(dxgiAdapter1, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)) &&
 					dxgiAdapterDesc1.DedicatedVideoMemory > maxDedicatedVideoMemory)
 				{
 					maxDedicatedVideoMemory = dxgiAdapterDesc1.DedicatedVideoMemory;
-					assert_msg(dxgiAdapter1.As(&dxgiAdapter4) == S_OK, "Failed to convert DXGI Adapter from 1 to 4.");
+					dxgiAdapter4 = (IDXGIAdapter4*)dxgiAdapter1;
+					assert_msg(dxgiAdapter4 != nullptr, "Failed to convert DXGI Adapter from 1 to 4.");
 				}
 			}
 
+			// Do not forget to release the resources
+			dxgiFactory->Release();
+
+			// Return the adapter
 			return dxgiAdapter4;
 		}
 
 		// Function that actually create the DX12 device
 		ID3D12Device2* CreateDevice()
 		{
-			ComPtr<IDXGIAdapter4> adapter = GetAdapter();
+			IDXGIAdapter4* adapter = GetAdapter();
 
 			// Create the graphics device and ensure it's been succesfully created
 			ID3D12Device2* d3d12Device2;
-			assert_msg(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d12Device2)) == S_OK, "D3D12 Device creation failed.");
+			assert_msg(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d12Device2)) == S_OK, "D3D12 Device creation failed.");
+
+			// Do not forget to release the resources
+			adapter->Release();
 
 			// Return the device
 			return d3d12Device2;
 		}
 
 		// Function to create the command queue
-		ID3D12CommandQueue* CreateCommandQueue(ComPtr<ID3D12Device2> device, D3D12_COMMAND_LIST_TYPE type)
+		ID3D12CommandQueue* CreateCommandQueue(ID3D12Device2* device, D3D12_COMMAND_LIST_TYPE type)
 		{
 			D3D12_COMMAND_QUEUE_DESC desc = {};
 			desc.Type = type;
@@ -222,10 +208,10 @@ namespace graphics_sandbox
 		}
 
 		// Function to create the swap chain
-		IDXGISwapChain4* CreateSwapChain(HWND hWnd, ComPtr<ID3D12CommandQueue> commandQueue, uint32_t width, uint32_t height, uint32_t bufferCount)
+		IDXGISwapChain4* CreateSwapChain(HWND hWnd, ID3D12CommandQueue* commandQueue, uint32_t width, uint32_t height, uint32_t bufferCount)
 		{
 			// Grab the DXGI factory 2
-			ComPtr<IDXGIFactory4> dxgiFactory4;
+			IDXGIFactory4* dxgiFactory4;
 			UINT createFactoryFlags = 0;
 			assert_msg(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory4)) == S_OK, "DXGI Factory 2 request failed.");
 
@@ -245,79 +231,57 @@ namespace graphics_sandbox
 
 			// Create the swapchain
 			IDXGISwapChain1* swapChain1;
-			assert_msg(dxgiFactory4->CreateSwapChainForHwnd(commandQueue.Get(), hWnd, &swapChainDesc, nullptr, nullptr, &swapChain1) == S_OK, "Create Swap Chain failed.");
+			assert_msg(dxgiFactory4->CreateSwapChainForHwnd(commandQueue, hWnd, &swapChainDesc, nullptr, nullptr, &swapChain1) == S_OK, "Create Swap Chain failed.");
 
 			// Cnonvert to the Swap Chain 4 structure
 			IDXGISwapChain4* dxgiSwapChain4 = (IDXGISwapChain4*)swapChain1;
+
+			// Release the resources
+			dxgiFactory4->Release();
 
 			// Return the swap chain
 			return dxgiSwapChain4;
 		}
 
-		/*
-		ComPtr<ID3D12DescriptorHeap> CreateDescriptorHeap(ComPtr<ID3D12Device2> device,
-				D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
+
+		ID3D12DescriptorHeap* CreateDescriptorHeap(ID3D12Device2* device, D3D12_DESCRIPTOR_HEAP_TYPE type, uint32_t numDescriptors)
 		{
-			ComPtr<ID3D12DescriptorHeap> descriptorHeap;
+			ID3D12DescriptorHeap* descriptorHeap;
 
 			D3D12_DESCRIPTOR_HEAP_DESC desc = {};
 			desc.NumDescriptors = numDescriptors;
 			desc.Type = type;
 
-			ThrowIfFailed(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)));
+			assert_msg(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(&descriptorHeap)) == S_OK, "Failed to create descriptor heap.");
 
 			return descriptorHeap;
 		}
 
-		void UpdateRenderTargetViews(ComPtr<ID3D12Device2> device,
-			ComPtr<IDXGISwapChain4> swapChain, ComPtr<ID3D12DescriptorHeap> descriptorHeap)
+		void CreateRenderTargetViews(DX12RenderEnvironment* dx12_re)
 		{
-			auto rtvDescriptorSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+			auto rtvDescriptorSize = dx12_re->device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
-			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+			CD3DX12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_re->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 
-			for (int i = 0; i < g_NumFrames; ++i)
+			// Loop through the frames of the swap chain
+			for (int i = 0; i < DX12_NUM_FRAMES; ++i)
 			{
-				ComPtr<ID3D12Resource> backBuffer;
-				ThrowIfFailed(swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer)));
+				// Grab the buffer
+				ID3D12Resource* backBuffer;
+				assert_msg(dx12_re->swapChain->GetBuffer(i, IID_PPV_ARGS(&backBuffer)) == S_OK, "Failed to get swap chain buffer.");
 
-				device->CreateRenderTargetView(backBuffer.Get(), nullptr, rtvHandle);
+				// Create a render target view for it
+				dx12_re->device->CreateRenderTargetView(backBuffer, nullptr, rtvHandle);
 
-				g_BackBuffers[i] = backBuffer;
+				// Keep track of the buffer
+				dx12_re->backBufferRenderTargetViews[i] = backBuffer;
 
+				// Move on to the next rtv
 				rtvHandle.Offset(rtvDescriptorSize);
 			}
 		}
 
-		ComPtr<ID3D12CommandAllocator> CreateCommandAllocator(ComPtr<ID3D12Device2> device,
-			D3D12_COMMAND_LIST_TYPE type)
-		{
-			ComPtr<ID3D12CommandAllocator> commandAllocator;
-			ThrowIfFailed(device->CreateCommandAllocator(type, IID_PPV_ARGS(&commandAllocator)));
-
-			return commandAllocator;
-		}
-
-		ComPtr<ID3D12GraphicsCommandList> CreateCommandList(ComPtr<ID3D12Device2> device,
-			ComPtr<ID3D12CommandAllocator> commandAllocator, D3D12_COMMAND_LIST_TYPE type)
-		{
-			ComPtr<ID3D12GraphicsCommandList> commandList;
-			ThrowIfFailed(device->CreateCommandList(0, type, commandAllocator.Get(), nullptr, IID_PPV_ARGS(&commandList)));
-
-			ThrowIfFailed(commandList->Close());
-
-			return commandList;
-		}
-
-		ComPtr<ID3D12Fence> CreateFence(ComPtr<ID3D12Device2> device)
-		{
-			ComPtr<ID3D12Fence> fence;
-
-			ThrowIfFailed(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence)));
-
-			return fence;
-		}
-
+		/*
 		HANDLE CreateEventHandle()
 		{
 			HANDLE fenceEvent;
@@ -377,7 +341,7 @@ namespace graphics_sandbox
 				DX12RenderEnvironment* dx12_re = bento::make_new<DX12RenderEnvironment>(*allocator);
 
 				// Convert the name from normal to wide
-				int stringSize = graphic_settings.window_name.size();
+				size_t stringSize = graphic_settings.window_name.size();
 				std::wstring wc(stringSize, L'#');
 				mbstowcs(&wc[0], graphic_settings.window_name.c_str(), stringSize);
 
@@ -401,6 +365,13 @@ namespace graphics_sandbox
 				// Grab the current back buffer
 				dx12_re->currentBackBuffer = dx12_re->swapChain->GetCurrentBackBufferIndex();
 
+				// Create the descriptor heap for the swap chain
+				dx12_re->descriptorHeap = CreateDescriptorHeap(dx12_re->device, D3D12_DESCRIPTOR_HEAP_TYPE_RTV, DX12_NUM_FRAMES);
+				dx12_re->rtvDescriptorSize = dx12_re->device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+				// Create the render target views for the swap chain
+				CreateRenderTargetViews(dx12_re);
+
 				// Return the opaque structure
 				return (RenderEnvironment)dx12_re;
 			}
@@ -409,6 +380,15 @@ namespace graphics_sandbox
 			{
 				// Convert to the internal structure
 				DX12RenderEnvironment* dx12_re = (DX12RenderEnvironment*)render_environment;
+
+				// Release the render target views for the swap chain buffers
+				for (uint32_t i = 0; i < DX12_NUM_FRAMES; ++i)
+				{
+					dx12_re->backBufferRenderTargetViews[i]->Release();
+				}
+
+				// Release the descriptor heap
+				dx12_re->descriptorHeap->Release();
 
 				// Release the swap chain
 				dx12_re->swapChain->Release();
@@ -434,6 +414,13 @@ namespace graphics_sandbox
 				// Convert to the internal structure
 				DX12RenderEnvironment* dx12_re = (DX12RenderEnvironment*)render_environment;
 				return (RenderWindow)dx12_re->window;
+			}
+
+			void flush_command_queue(RenderEnvironment render_environment)
+			{
+				DX12RenderEnvironment* dx12_re = (DX12RenderEnvironment*)render_environment;
+				dx12_re->commandQueue
+
 			}
 		}
 
@@ -522,6 +509,22 @@ namespace graphics_sandbox
 				DX12RenderEnvironment* dx12_re = (DX12RenderEnvironment*)fence;
 				ID3D12Fence* dx12_ence = (ID3D12Fence*)fence;
 				dx12_ence->Release();
+			}
+
+			FenceEvent create_fence_event()
+			{
+				HANDLE fenceEvent;
+
+				fenceEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+				assert_msg(fenceEvent != nullptr, "Failed to create fence event.");
+
+				return (FenceEvent)fenceEvent;
+			}
+
+			void destroy_fence_event(FenceEvent fenceEvent)
+			{
+				HANDLE fenceEventHandle = (HANDLE)fenceEvent;
+				CloseHandle(fenceEventHandle);
 			}
 		}
 	}

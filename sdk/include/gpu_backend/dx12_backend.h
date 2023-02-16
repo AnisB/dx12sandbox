@@ -20,6 +20,9 @@ namespace graphics_sandbox
 			RenderEnvironment create_render_environment(const TGraphicSettings& graphic_settings);
 			RenderWindow render_window(RenderEnvironment render_environement);
 			void destroy_render_environment(RenderEnvironment render_environment);
+
+			// Command queue flushing
+			void flush_command_queue(RenderEnvironment render_environment);
 		}
 
 		namespace window
@@ -38,6 +41,9 @@ namespace graphics_sandbox
 		{
 			Fence create_fence(RenderEnvironment render_environment);
 			void destroy_fence(Fence fence);
+
+			FenceEvent create_fence_event();
+			void destroy_fence_event(FenceEvent fenceEvent);
 		}
 	}
 }
