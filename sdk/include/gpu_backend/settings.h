@@ -9,6 +9,15 @@
 	
 namespace graphics_sandbox
 {
+	namespace RenderingBackEnd
+	{
+		enum Type
+		{
+			DX12 = 0,
+			COUNT = 1
+		};
+	}
+
 	struct TGraphicSettings
 	{
 		std::string window_name;
