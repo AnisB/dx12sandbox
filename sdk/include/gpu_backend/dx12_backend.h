@@ -7,6 +7,7 @@
 // Library includes
 #include "gpu_backend/gpu_types.h"
 #include "gpu_backend/settings.h"
+#include "gpu_backend/render_target_descriptor.h"
 
 namespace graphics_sandbox
 {
@@ -42,7 +43,6 @@ namespace graphics_sandbox
 
 			// Operation
 			void execute_command_buffer(CommandQueue commandQueue, CommandBuffer commandBuffer);
-			void flush_command_queue(CommandQueue commandQueue, Fence fence, uint64_t fenceValue, FenceEvent fenceEvent);
 		}
 
 		// Swap Chain API
@@ -61,7 +61,7 @@ namespace graphics_sandbox
 		namespace descriptor_heap
 		{
 			// Creation and Destruction
-			DescriptorHeap create_descriptor_heap(GraphicsDevice graphicsDevice, uint32_t numDescriptors);
+			DescriptorHeap create_descriptor_heap(GraphicsDevice graphicsDevice, uint32_t numDescriptors, bool isUAV, bool isDepthStencil);
 			void destroy_descriptor_heap(DescriptorHeap descriptorHeap);
 		}
 
@@ -91,6 +91,17 @@ namespace graphics_sandbox
 			void set_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget);
 			void clear_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget, const bento::Vector4& color);
 			void render_target_present(CommandBuffer commandBuffer, RenderTarget renderTarget);
+		}
+
+		namespace render_target
+		{
+			RenderTarget create_render_target(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc);
+			void destroy_render_target(RenderTarget renderTarget);
+		}
+
+		namespace compute_shader
+		{
+			ComputeShader create_compute_shader(GraphicsDevice graphicsDevice);
 		}
 	}
 }

@@ -15,4 +15,5 @@ namespace graphics_sandbox
 	typedef uint64_t FenceEvent;
 	typedef uint64_t Resource;
 	typedef uint64_t RenderTarget;
+	typedef uint64_t ComputeShader;
 }

@@ -8,24 +8,18 @@
 
 // Graphics API include
 #include "gpu_backend/dx12_backend.h"
+#include "gpu_backend/event_collector.h"
 
 using namespace graphics_sandbox;
 using namespace graphics_sandbox::d3d12;
 
-// Global structures
-CommandQueue g_commandQueue = 0;
-CommandBuffer g_commandBuffer = 0;
-SwapChain g_swapChain = 0;
-
-void Render()
+void Render(CommandQueue commandQueue, CommandBuffer commandBuffer, SwapChain swapChain)
 {
 	// Reset the command buffer
-	command_buffer::reset(g_commandBuffer);
+	command_buffer::reset(commandBuffer);
 
 	// Grab the current swap chain render target
-	RenderTarget renderTarget = swap_chain::get_current_render_target(g_swapChain);
-
-	// Get time
+	RenderTarget renderTarget = swap_chain::get_current_render_target(swapChain);
 
 	// Int that is going to be used for the color picking
 	uint64_t now = time(0) * 20;
@@ -37,19 +31,19 @@ void Render()
 	b = ((now / (256 * 256)) % 256) / 255.0f;
 
 	// Clear the render target
-	command_buffer::clear_render_target(g_commandBuffer, renderTarget, bento::vector4(r, g, b, 1.0));
+	command_buffer::clear_render_target(commandBuffer, renderTarget, bento::vector4(r, g, b, 1.0));
 
 	// Set the render target in present mode
-	command_buffer::render_target_present(g_commandBuffer, renderTarget);
+	command_buffer::render_target_present(commandBuffer, renderTarget);
 
 	// Close the command buffer
-	command_buffer::close(g_commandBuffer);
+	command_buffer::close(commandBuffer);
 
 	// Execute the command buffer in the command queue
-	command_queue::execute_command_buffer(g_commandQueue, g_commandBuffer);
+	command_queue::execute_command_buffer(commandQueue, commandBuffer);
 
 	// Present
-	swap_chain::present(g_swapChain, g_commandQueue);
+	swap_chain::present(swapChain, commandQueue);
 }
 
 int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
@@ -66,39 +60,67 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 	GraphicsDevice graphicsDevice = graphics_device::create_graphics_device();
 
 	// Create the command queue
-	g_commandQueue = command_queue::create_command_queue(graphicsDevice);
+	CommandQueue commandQueue = command_queue::create_command_queue(graphicsDevice);
 
 	// Create the swap chain
-	g_swapChain = swap_chain::create_swap_chain(window, graphicsDevice, g_commandQueue);
+	SwapChain swapChain = swap_chain::create_swap_chain(window, graphicsDevice, commandQueue);
 
     // Create the command buffer
-	g_commandBuffer = d3d12::command_buffer::create_command_buffer(graphicsDevice);
+	CommandBuffer commandBuffer = d3d12::command_buffer::create_command_buffer(graphicsDevice);
 
     // Show the window
     d3d12::window::show(window);
 
     // Render loop
-    MSG msg = {};
-    while (msg.message != WM_QUIT)
+	bool activeLoop = true;
+    while (activeLoop)
     {
-        if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
-        {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-        }
+		FrameEvent frameEvent;
+		if (event_collector::peek_event(frameEvent))
+		{
+			switch (frameEvent)
+			{
+				case FrameEvent::Paint:
+				{
+					Render(commandQueue, commandBuffer, swapChain);
+				}
+				break;
+				case FrameEvent::Close:
+				{
+					activeLoop = false;
+				}
+				break;
+				case FrameEvent::Destroy:
+				{
+					activeLoop = false;
+				}
+				break;
+			}
+		}
+
+		// Need to figure out wtf this is reuquired."
+		MSG msg = {};
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+		{
+			TranslateMessage(&msg);
+			DispatchMessage(&msg);
+		}
     }
 
     // Destroy the command buffer
-    command_buffer::destroy_command_buffer(g_commandBuffer);
+    command_buffer::destroy_command_buffer(commandBuffer);
 
 	// Destroy the swap chain
-	swap_chain::destroy_swap_chain(g_swapChain);
+	swap_chain::destroy_swap_chain(swapChain);
 
 	// Destroy the command queue
-	command_queue::destroy_command_queue(g_commandQueue);
+	command_queue::destroy_command_queue(commandQueue);
 
     // Destroy the graphics device
     graphics_device::destroy_graphics_device(graphicsDevice);
+
+	// Destroy the window
+	window::destroy_window(window);
 
     return 0;
 }

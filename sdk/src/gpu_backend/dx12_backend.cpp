@@ -14,34 +14,33 @@
 
 // Internal includes
 #include "gpu_backend/dx12_backend.h"
+#include "gpu_backend/event_collector.h"
 
 // Required for ComPtr
 #define DX12_NUM_BACK_BUFFERS 2
 
-void Update();
-void Render();
-
-LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
+namespace graphics_sandbox
 {
-	switch (message)
+	LRESULT CALLBACK WndProc(HWND hwnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
+		switch (message)
+		{
 		case WM_PAINT:
-			Render();
+			event_collector::push_event(FrameEvent::Paint);
 			break;
 		case WM_CLOSE:
-			DestroyWindow(hwnd);
+			event_collector::push_event(FrameEvent::Close);
 			break;
 		case WM_DESTROY:
-			PostQuitMessage(0);
+			event_collector::push_event(FrameEvent::Destroy);
+			// PostQuitMessage(0);
 			break;
 		default:
 			return DefWindowProc(hwnd, message, wParam, lParam); // add this
+		}
+		return 0;
 	}
-	return 0;
-}
- 
-namespace graphics_sandbox
-{
+
 	namespace d3d12
 	{
 		TGraphicSettings default_settings()
@@ -257,7 +256,7 @@ namespace graphics_sandbox
 
 				// Loop through all the available dapters
 				IDXGIAdapter1* dxgiAdapter1;
-				IDXGIAdapter4* dxgiAdapter4;
+				IDXGIAdapter4* dxgiAdapter4 = nullptr;
 				SIZE_T maxDedicatedVideoMemory = 0;
 				for (UINT i = 0; dxgiFactory->EnumAdapters1(i, &dxgiAdapter1) != DXGI_ERROR_NOT_FOUND; ++i)
 				{
@@ -334,11 +333,14 @@ namespace graphics_sandbox
 		struct DX12RenderTarget
 		{
 			// Actual resource
-			ID3D12Resource* renderTarget;
+			ID3D12Resource* resource;
+			D3D12_RESOURCE_STATES resourceState;
 
-			// Descriptor heap and offset
+			// Descriptor heap and offset (for the view)
 			ID3D12DescriptorHeap* descriptorHeap;
 			uint32_t heapOffset;
+			// Tells us if the heap is owned by the rendertarget or not
+			bool rtOwned;
 		};
 
 		// Swap Chain API
@@ -385,7 +387,7 @@ namespace graphics_sandbox
 				dx12_swapChain->currentBackBuffer = dx12_swapChain->swapChain->GetCurrentBackBufferIndex();
 
 				// Create the descriptor heap for the swap chain
-				dx12_swapChain->descriptorHeap = (ID3D12DescriptorHeap*)descriptor_heap::create_descriptor_heap((GraphicsDevice)deviceDX, DX12_NUM_BACK_BUFFERS);
+				dx12_swapChain->descriptorHeap = (ID3D12DescriptorHeap*)descriptor_heap::create_descriptor_heap((GraphicsDevice)deviceDX, DX12_NUM_BACK_BUFFERS, false, false);
 				dx12_swapChain->rtvDescriptorSize = deviceDX->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 
 				// Grab the heap's size
@@ -398,14 +400,16 @@ namespace graphics_sandbox
 				for (uint32_t n = 0; n < DX12_NUM_BACK_BUFFERS; n++)
 				{
 					// Keep track of the descriptor heap where this is stored
-					dx12_swapChain->backBufferRenderTarget[n].descriptorHeap = dx12_swapChain->descriptorHeap;
-					dx12_swapChain->backBufferRenderTarget[n].heapOffset = descriptorSize * n;
+					DX12RenderTarget& currentRenderTarget = dx12_swapChain->backBufferRenderTarget[n];
+					currentRenderTarget.resourceState = D3D12_RESOURCE_STATE_PRESENT;
+					currentRenderTarget.descriptorHeap = dx12_swapChain->descriptorHeap;
+					currentRenderTarget.heapOffset = descriptorSize * n;
 
 					// Grab the buffer of the swap chain
-					assert_msg(dx12_swapChain->swapChain->GetBuffer(n, IID_PPV_ARGS(&dx12_swapChain->backBufferRenderTarget[n].renderTarget)) == S_OK, "Failed to get the swap chain buffer.");
+					assert_msg(dx12_swapChain->swapChain->GetBuffer(n, IID_PPV_ARGS(&dx12_swapChain->backBufferRenderTarget[n].resource)) == S_OK, "Failed to get the swap chain buffer.");
 
 					// Create a render target view for it
-					deviceDX->CreateRenderTargetView(dx12_swapChain->backBufferRenderTarget[n].renderTarget, nullptr, rtvHandle);
+					deviceDX->CreateRenderTargetView(dx12_swapChain->backBufferRenderTarget[n].resource, nullptr, rtvHandle);
 
 					// Move on to the next pointer
 					rtvHandle.ptr += (1 * descriptorSize);
@@ -431,7 +435,7 @@ namespace graphics_sandbox
 
 				// Release the render target views
 				for (uint32_t n = 0; n < DX12_NUM_BACK_BUFFERS; n++)
-					dx12_swapChain->backBufferRenderTarget[n].renderTarget->Release();
+					dx12_swapChain->backBufferRenderTarget[n].resource->Release();
 
 				// Release the DX12 structures
 				descriptor_heap::destroy_descriptor_heap((DescriptorHeap)dx12_swapChain->descriptorHeap);
@@ -477,7 +481,7 @@ namespace graphics_sandbox
 		namespace descriptor_heap
 		{
 			// Creation and Destruction
-			DescriptorHeap create_descriptor_heap(GraphicsDevice graphicsDevice, uint32_t numDescriptors)
+			DescriptorHeap create_descriptor_heap(GraphicsDevice graphicsDevice, uint32_t numDescriptors, bool isUAV, bool isDepthStencil)
 			{
 				// Grab the graphics devices
 				ID3D12Device2* deviceDX = (ID3D12Device2*)graphicsDevice;
@@ -485,7 +489,7 @@ namespace graphics_sandbox
 				// Describe and create a render target view (RTV) descriptor heap.
 				D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc = {};
 				rtvHeapDesc.NumDescriptors = numDescriptors;
-				rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+				rtvHeapDesc.Type = isUAV ? D3D12_DESCRIPTOR_HEAP_TYPE_RTV : (isDepthStencil ? D3D12_DESCRIPTOR_HEAP_TYPE_DSV : D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
 				rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 				ID3D12DescriptorHeap* descriptorHeap;
@@ -505,6 +509,25 @@ namespace graphics_sandbox
 		// Command Buffer API
 		namespace command_buffer
 		{
+			void change_render_target_state(DX12CommandBuffer* commandBuffer, DX12RenderTarget* dx12_renderTarget, D3D12_RESOURCE_STATES targetState)
+			{
+				if (targetState != dx12_renderTarget->resourceState)
+				{
+					// Define a barrier for the resource
+					D3D12_RESOURCE_BARRIER barrier = {};
+					barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+					barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
+					barrier.Transition.pResource = dx12_renderTarget->resource;
+					barrier.Transition.StateBefore = dx12_renderTarget->resourceState;
+					barrier.Transition.StateAfter = targetState;
+					barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+					commandBuffer->commandList->ResourceBarrier(1, &barrier);
+
+					// Keep track of the new state
+					dx12_renderTarget->resourceState = targetState;
+				}
+			}
+
 			CommandBuffer create_command_buffer(GraphicsDevice graphicsDevice)
 			{
 				bento::IAllocator* allocator = bento::common_allocator();
@@ -578,15 +601,8 @@ namespace graphics_sandbox
 				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_renderTarget->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
 				rtvHandle.ptr += dx12_renderTarget->heapOffset;
 
-				// Define a barrier for the resource
-				D3D12_RESOURCE_BARRIER barrier = {};
-				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-				barrier.Transition.pResource = dx12_renderTarget->renderTarget;
-				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
-				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
-				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-				dx12_commandBuffer->commandList->ResourceBarrier(1, &barrier);
+				// Make sure the state is the right one
+				change_render_target_state(dx12_commandBuffer, dx12_renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 				// Clear with the color
 				dx12_commandBuffer->commandList->ClearRenderTargetView(rtvHandle, &color.x, 0, nullptr);
@@ -597,15 +613,8 @@ namespace graphics_sandbox
 				DX12CommandBuffer* dx12_commandBuffer = (DX12CommandBuffer*)commandBuffer;
 				DX12RenderTarget* dx12_renderTarget = (DX12RenderTarget*)renderTarget;
 
-				// Define a barrier for the resource
-				D3D12_RESOURCE_BARRIER barrier = {};
-				barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-				barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-				barrier.Transition.pResource = dx12_renderTarget->renderTarget;
-				barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
-				barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
-				barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-				dx12_commandBuffer->commandList->ResourceBarrier(1, &barrier);
+				// Make sure the state is the right one
+				change_render_target_state(dx12_commandBuffer, dx12_renderTarget, D3D12_RESOURCE_STATE_PRESENT);
 			}
 		}
 
@@ -650,6 +659,167 @@ namespace graphics_sandbox
 					assert_msg(fenceDX->SetEventOnCompletion(fenceValue, fenceEventDX) == S_OK, "Failed to wait on fence.");
 					WaitForSingleObject(fenceEventDX, (DWORD)maxTime);
 				}
+			}
+		}
+
+		DXGI_FORMAT graphics_format_to_dxgi_format(GraphicsFormat graphicsFormat)
+		{
+			switch (graphicsFormat)
+			{
+				// R8G8B8A8 Formats
+				case GraphicsFormat::R8G8B8A8_SNorm:
+					return DXGI_FORMAT_R8G8B8A8_SNORM;
+				case GraphicsFormat::R8G8B8A8_UNorm:
+					return DXGI_FORMAT_R8G8B8A8_UNORM;
+				case GraphicsFormat::R8G8B8A8_UInt:
+					return DXGI_FORMAT_R8G8B8A8_UINT;
+				case GraphicsFormat::R8G8B8A8_SInt:
+					return DXGI_FORMAT_R8G8B8A8_SINT;
+
+				// R16G16B16A16 Formats
+				case GraphicsFormat::R16G16B16A16_SFloat:
+					return DXGI_FORMAT_R16G16B16A16_FLOAT;
+				case GraphicsFormat::R16G16B16A16_UInt:
+					return DXGI_FORMAT_R16G16B16A16_UINT;
+				case GraphicsFormat::R16G16B16A16_SInt:
+					return DXGI_FORMAT_R16G16B16A16_SINT;
+
+				// Depth/Stencil formats
+				case GraphicsFormat::Depth32:
+					return DXGI_FORMAT_D32_FLOAT;
+				case GraphicsFormat::Depth24Stencil8:
+					return DXGI_FORMAT_D32_FLOAT_S8X24_UINT;
+			}
+
+			// Should never be here
+			assert_fail_msg("Unknown DX12 Format");
+			return DXGI_FORMAT_R8G8B8A8_SNORM;
+		}
+
+		D3D12_RESOURCE_DIMENSION texture_dimension_to_dx12_resource_dimension(TextureDimension textureDimension)
+		{
+			switch (textureDimension)
+			{
+			case TextureDimension::Tex1D:
+			case TextureDimension::Tex1DArray:
+				return D3D12_RESOURCE_DIMENSION_TEXTURE1D;
+			case TextureDimension::Tex2D:
+			case TextureDimension::Tex2DArray:
+				return D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+			case TextureDimension::Tex3D:
+				return D3D12_RESOURCE_DIMENSION_TEXTURE3D;
+			default:
+				return D3D12_RESOURCE_DIMENSION_UNKNOWN;
+			}
+		}
+
+		namespace render_target
+		{
+			RenderTarget create_render_target(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc)
+			{
+				ID3D12Device2* deviceDX = (ID3D12Device2*)graphicsDevice;
+
+				// Define the heap
+				D3D12_HEAP_PROPERTIES heapProperties = {};
+				heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+				heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+				heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+
+				// Not sure about this
+				heapProperties.VisibleNodeMask = 0xff;
+
+				// Define the clear value
+				D3D12_CLEAR_VALUE clearValue;
+				clearValue.Format = graphics_format_to_dxgi_format(rtDesc.format);
+				memcpy(clearValue.Color, &rtDesc.clearColor.x, 4 * sizeof(float));
+
+				D3D12_RESOURCE_DESC resourceDescriptor = {};
+				resourceDescriptor.Dimension = texture_dimension_to_dx12_resource_dimension(rtDesc.dimension);
+				resourceDescriptor.Width = rtDesc.width;
+				resourceDescriptor.Height = rtDesc.height;
+				resourceDescriptor.DepthOrArraySize = rtDesc.depth;
+				resourceDescriptor.MipLevels = rtDesc.hasMips ? 2 : 0;
+				resourceDescriptor.Format = graphics_format_to_dxgi_format(rtDesc.format);
+				resourceDescriptor.SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+				resourceDescriptor.Alignment = graphics_format_alignement(rtDesc.format);
+
+				// This is a choice for now
+				resourceDescriptor.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
+
+				// Raise all the relevant flags
+				resourceDescriptor.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+				resourceDescriptor.Flags |= rtDesc.isUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+				resourceDescriptor.Flags |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_NONE;
+				
+				// Resource states
+				D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+				state |= rtDesc.isUAV ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : D3D12_RESOURCE_STATE_COMMON;
+				state |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_STATE_DEPTH_WRITE | D3D12_RESOURCE_STATE_DEPTH_READ : D3D12_RESOURCE_STATE_COMMON;
+
+				// Create the render target
+				ID3D12Resource* renderTarget;
+				assert_msg(deviceDX->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES, &resourceDescriptor, state, &clearValue, IID_PPV_ARGS(&renderTarget)) == S_OK, "Failed to create render target.");
+				
+				// Create the descriptor heap
+				DescriptorHeap descriptorHeap = descriptor_heap::create_descriptor_heap(graphicsDevice, 1, rtDesc.isUAV, is_depth_format(rtDesc.format));
+
+				// Create a render target view for it
+				ID3D12DescriptorHeap* descriptorHeapDX = (ID3D12DescriptorHeap*)descriptorHeap;
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeapDX->GetCPUDescriptorHandleForHeapStart());
+				if (rtDesc.isUAV)
+				{
+
+				}
+				else if (is_depth_format(rtDesc.format))
+				{
+
+				}
+				else
+				{
+					deviceDX->CreateRenderTargetView(renderTarget, nullptr, rtvHandle);
+				}
+
+				// Return the render target
+				return (RenderTarget)renderTarget;
+			}
+
+			void destroy_render_target(RenderTarget renderTarget)
+			{
+				ID3D12Resource* renderTargetDX = (ID3D12Resource*)renderTarget;
+				renderTargetDX->Release();
+			}
+		}
+
+		namespace compute_shader
+		{
+			ComputeShader create_compute_shader(GraphicsDevice graphicsDevice)
+			{
+				// Grab the actual DX12 structures
+				ID3D12Device2* deviceDX = (ID3D12Device2*)graphicsDevice;
+
+				/*
+				// 
+				auto const computeShaderBlob = DX::ReadData(L"Fractal.cso");
+
+				// Create the root signature for the compute shader
+				assert_msg(deviceDX->CreateRootSignature(0, computeShaderBlob.data(), computeShaderBlob.size(), IID_GRAPHICS_PPV_ARGS(m_computeRootSignature.ReleaseAndGetAddressOf())));
+
+				m_computeRootSignature->SetName(L"Compute RS");
+
+				// Create compute pipeline state
+				D3D12_COMPUTE_PIPELINE_STATE_DESC descComputePSO = {};
+				descComputePSO.pRootSignature = m_computeRootSignature.Get();
+				descComputePSO.CS.pShaderBytecode = computeShaderBlob.data();
+				descComputePSO.CS.BytecodeLength = computeShaderBlob.size();
+
+				DX::ThrowIfFailed(
+					device->CreateComputePipelineState(&descComputePSO, IID_GRAPHICS_PPV_ARGS(m_computePSO.ReleaseAndGetAddressOf())));
+
+				m_computePSO->SetName(L"Compute PSO");
+
+				*/
+
+				return (ComputeShader)0;
 			}
 		}
 	}
