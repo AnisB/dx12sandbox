@@ -16,7 +16,6 @@
 #include "gpu_backend/dx12_backend.h"
 #include "gpu_backend/event_collector.h"
 
-// Required for ComPtr
 #define DX12_NUM_BACK_BUFFERS 2
 
 namespace graphics_sandbox
@@ -330,7 +329,7 @@ namespace graphics_sandbox
 			}
 		}
 
-		struct DX12RenderTarget
+		struct DX12RenderTexture
 		{
 			// Actual resource
 			ID3D12Resource* resource;
@@ -357,7 +356,7 @@ namespace graphics_sandbox
 				uint32_t rtvDescriptorSize;
 
 				// Back Buffers
-				DX12RenderTarget backBufferRenderTarget[DX12_NUM_BACK_BUFFERS];
+				DX12RenderTexture backBufferRenderTexture[DX12_NUM_BACK_BUFFERS];
 
 				// Fencing required for the swap chain
 				ID3D12Fence* fence;
@@ -400,16 +399,16 @@ namespace graphics_sandbox
 				for (uint32_t n = 0; n < DX12_NUM_BACK_BUFFERS; n++)
 				{
 					// Keep track of the descriptor heap where this is stored
-					DX12RenderTarget& currentRenderTarget = dx12_swapChain->backBufferRenderTarget[n];
-					currentRenderTarget.resourceState = D3D12_RESOURCE_STATE_PRESENT;
-					currentRenderTarget.descriptorHeap = dx12_swapChain->descriptorHeap;
-					currentRenderTarget.heapOffset = descriptorSize * n;
+					DX12RenderTexture& currentRenderTexture = dx12_swapChain->backBufferRenderTexture[n];
+					currentRenderTexture.resourceState = D3D12_RESOURCE_STATE_PRESENT;
+					currentRenderTexture.descriptorHeap = dx12_swapChain->descriptorHeap;
+					currentRenderTexture.heapOffset = descriptorSize * n;
 
 					// Grab the buffer of the swap chain
-					assert_msg(dx12_swapChain->swapChain->GetBuffer(n, IID_PPV_ARGS(&dx12_swapChain->backBufferRenderTarget[n].resource)) == S_OK, "Failed to get the swap chain buffer.");
+					assert_msg(dx12_swapChain->swapChain->GetBuffer(n, IID_PPV_ARGS(&dx12_swapChain->backBufferRenderTexture[n].resource)) == S_OK, "Failed to get the swap chain buffer.");
 
 					// Create a render target view for it
-					deviceDX->CreateRenderTargetView(dx12_swapChain->backBufferRenderTarget[n].resource, nullptr, rtvHandle);
+					deviceDX->CreateRenderTargetView(dx12_swapChain->backBufferRenderTexture[n].resource, nullptr, rtvHandle);
 
 					// Move on to the next pointer
 					rtvHandle.ptr += (1 * descriptorSize);
@@ -435,7 +434,7 @@ namespace graphics_sandbox
 
 				// Release the render target views
 				for (uint32_t n = 0; n < DX12_NUM_BACK_BUFFERS; n++)
-					dx12_swapChain->backBufferRenderTarget[n].resource->Release();
+					dx12_swapChain->backBufferRenderTexture[n].resource->Release();
 
 				// Release the DX12 structures
 				descriptor_heap::destroy_descriptor_heap((DescriptorHeap)dx12_swapChain->descriptorHeap);
@@ -445,10 +444,10 @@ namespace graphics_sandbox
 				bento::make_delete<DX12SwapChain>(*bento::common_allocator(), dx12_swapChain);
 			}
 
-			RenderTarget get_current_render_target(SwapChain swapChain)
+			RenderTexture get_current_render_texture(SwapChain swapChain)
 			{
 				DX12SwapChain* dx12_swapChain = (DX12SwapChain*)swapChain;
-				return (RenderTarget)(&dx12_swapChain->backBufferRenderTarget[dx12_swapChain->currentBackBuffer]);
+				return (RenderTexture)(&dx12_swapChain->backBufferRenderTexture[dx12_swapChain->currentBackBuffer]);
 			}
 
 			void present(SwapChain swapChain, CommandQueue commandQueue)
@@ -509,22 +508,22 @@ namespace graphics_sandbox
 		// Command Buffer API
 		namespace command_buffer
 		{
-			void change_render_target_state(DX12CommandBuffer* commandBuffer, DX12RenderTarget* dx12_renderTarget, D3D12_RESOURCE_STATES targetState)
+			void change_render_target_state(DX12CommandBuffer* commandBuffer, DX12RenderTexture* dx12_renderTexture, D3D12_RESOURCE_STATES targetState)
 			{
-				if (targetState != dx12_renderTarget->resourceState)
+				if (targetState != dx12_renderTexture->resourceState)
 				{
 					// Define a barrier for the resource
 					D3D12_RESOURCE_BARRIER barrier = {};
 					barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
 					barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-					barrier.Transition.pResource = dx12_renderTarget->resource;
-					barrier.Transition.StateBefore = dx12_renderTarget->resourceState;
+					barrier.Transition.pResource = dx12_renderTexture->resource;
+					barrier.Transition.StateBefore = dx12_renderTexture->resourceState;
 					barrier.Transition.StateAfter = targetState;
 					barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
 					commandBuffer->commandList->ResourceBarrier(1, &barrier);
 
 					// Keep track of the new state
-					dx12_renderTarget->resourceState = targetState;
+					dx12_renderTexture->resourceState = targetState;
 				}
 			}
 
@@ -578,43 +577,43 @@ namespace graphics_sandbox
 				dx12_commandBuffer->commandList->Close();
 			}
 
-			void set_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget)
+			void set_render_texture(CommandBuffer commandBuffer, RenderTexture renderTexture)
 			{
 				DX12CommandBuffer* dx12_commandBuffer = (DX12CommandBuffer*)commandBuffer;
-				DX12RenderTarget* dx12_renderTarget = (DX12RenderTarget*)renderTarget;
+				DX12RenderTexture* dx12_renderTexture = (DX12RenderTexture*)renderTexture;
 
 				// Grab the render target view
-				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_renderTarget->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-				rtvHandle.ptr += dx12_renderTarget->heapOffset;
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_renderTexture->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+				rtvHandle.ptr += dx12_renderTexture->heapOffset;
 
 				// Set the render target and the current one
 				dx12_commandBuffer->commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 			}
 
-			void clear_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget, const bento::Vector4& color)
+			void clear_render_texture(CommandBuffer commandBuffer, RenderTexture renderTeture, const bento::Vector4& color)
 			{
 				// Grab the actual structures
 				DX12CommandBuffer* dx12_commandBuffer = (DX12CommandBuffer*)commandBuffer;
-				DX12RenderTarget* dx12_renderTarget = (DX12RenderTarget*)renderTarget;
+				DX12RenderTexture* dx12_renderTexture = (DX12RenderTexture*)renderTeture;
 
 				// Grab the render target view
-				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_renderTarget->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
-				rtvHandle.ptr += dx12_renderTarget->heapOffset;
+				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_renderTexture->descriptorHeap->GetCPUDescriptorHandleForHeapStart());
+				rtvHandle.ptr += dx12_renderTexture->heapOffset;
 
 				// Make sure the state is the right one
-				change_render_target_state(dx12_commandBuffer, dx12_renderTarget, D3D12_RESOURCE_STATE_RENDER_TARGET);
+				change_render_target_state(dx12_commandBuffer, dx12_renderTexture, D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 				// Clear with the color
 				dx12_commandBuffer->commandList->ClearRenderTargetView(rtvHandle, &color.x, 0, nullptr);
 			}
 
-			void render_target_present(CommandBuffer commandBuffer, RenderTarget renderTarget)
+			void render_texture_present(CommandBuffer commandBuffer, RenderTexture renderTeture)
 			{
 				DX12CommandBuffer* dx12_commandBuffer = (DX12CommandBuffer*)commandBuffer;
-				DX12RenderTarget* dx12_renderTarget = (DX12RenderTarget*)renderTarget;
+				DX12RenderTexture* dx12_renderTexture = (DX12RenderTexture*)renderTeture;
 
 				// Make sure the state is the right one
-				change_render_target_state(dx12_commandBuffer, dx12_renderTarget, D3D12_RESOURCE_STATE_PRESENT);
+				change_render_target_state(dx12_commandBuffer, dx12_renderTexture, D3D12_RESOURCE_STATE_PRESENT);
 			}
 		}
 
@@ -704,20 +703,23 @@ namespace graphics_sandbox
 			case TextureDimension::Tex1DArray:
 				return D3D12_RESOURCE_DIMENSION_TEXTURE1D;
 			case TextureDimension::Tex2D:
-			case TextureDimension::Tex2DArray:
+			case TextureDimension::TexCube:
 				return D3D12_RESOURCE_DIMENSION_TEXTURE2D;
 			case TextureDimension::Tex3D:
+			case TextureDimension::TexCubeArray:
+			case TextureDimension::Tex2DArray:
 				return D3D12_RESOURCE_DIMENSION_TEXTURE3D;
 			default:
 				return D3D12_RESOURCE_DIMENSION_UNKNOWN;
 			}
 		}
 
-		namespace render_target
+		namespace graphics_resources
 		{
-			RenderTarget create_render_target(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc)
+			RenderTexture create_render_texture(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc)
 			{
 				ID3D12Device2* deviceDX = (ID3D12Device2*)graphicsDevice;
+				assert(deviceDX != nullptr);
 
 				// Define the heap
 				D3D12_HEAP_PROPERTIES heapProperties = {};
@@ -747,18 +749,18 @@ namespace graphics_sandbox
 				resourceDescriptor.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
 
 				// Raise all the relevant flags
-				resourceDescriptor.Flags = D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
+				resourceDescriptor.Flags = D3D12_RESOURCE_FLAG_NONE;
 				resourceDescriptor.Flags |= rtDesc.isUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
-				resourceDescriptor.Flags |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_NONE;
+				resourceDescriptor.Flags |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL : D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET;
 				
 				// Resource states
-				D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_RENDER_TARGET;
+				D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
 				state |= rtDesc.isUAV ? D3D12_RESOURCE_STATE_UNORDERED_ACCESS : D3D12_RESOURCE_STATE_COMMON;
-				state |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_STATE_DEPTH_WRITE | D3D12_RESOURCE_STATE_DEPTH_READ : D3D12_RESOURCE_STATE_COMMON;
+				state |= is_depth_format(rtDesc.format) ? D3D12_RESOURCE_STATE_DEPTH_WRITE | D3D12_RESOURCE_STATE_DEPTH_READ : D3D12_RESOURCE_STATE_RENDER_TARGET;
 
 				// Create the render target
-				ID3D12Resource* renderTarget;
-				assert_msg(deviceDX->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES, &resourceDescriptor, state, &clearValue, IID_PPV_ARGS(&renderTarget)) == S_OK, "Failed to create render target.");
+				ID3D12Resource* resource;
+				assert_msg(deviceDX->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES, &resourceDescriptor, state, &clearValue, IID_PPV_ARGS(&resource)) == S_OK, "Failed to create render target.");
 				
 				// Create the descriptor heap
 				DescriptorHeap descriptorHeap = descriptor_heap::create_descriptor_heap(graphicsDevice, 1, rtDesc.isUAV, is_depth_format(rtDesc.format));
@@ -767,26 +769,77 @@ namespace graphics_sandbox
 				ID3D12DescriptorHeap* descriptorHeapDX = (ID3D12DescriptorHeap*)descriptorHeap;
 				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(descriptorHeapDX->GetCPUDescriptorHandleForHeapStart());
 				if (rtDesc.isUAV)
-				{
-
-				}
+					deviceDX->CreateUnorderedAccessView(resource, nullptr, nullptr, rtvHandle);
 				else if (is_depth_format(rtDesc.format))
-				{
-
-				}
+					deviceDX->CreateDepthStencilView(resource, nullptr, rtvHandle);
 				else
-				{
-					deviceDX->CreateRenderTargetView(renderTarget, nullptr, rtvHandle);
-				}
+					deviceDX->CreateRenderTargetView(resource, nullptr, rtvHandle);
+
+				bento::IAllocator* allocator = bento::common_allocator();
+				assert(allocator != nullptr);
+
+				// Create the render texture internal structure
+				DX12RenderTexture* dx12_renderTexture = bento::make_new<DX12RenderTexture>(*allocator);
+				dx12_renderTexture->resource = resource;
+				dx12_renderTexture->descriptorHeap = descriptorHeapDX;
+				dx12_renderTexture->heapOffset = 0;
 
 				// Return the render target
-				return (RenderTarget)renderTarget;
+				return (RenderTexture)dx12_renderTexture;
 			}
 
-			void destroy_render_target(RenderTarget renderTarget)
+			void destroy_render_texture(RenderTexture renderTexture)
 			{
-				ID3D12Resource* renderTargetDX = (ID3D12Resource*)renderTarget;
-				renderTargetDX->Release();
+				DX12RenderTexture* dx12_renderTexture = (DX12RenderTexture*)renderTexture;
+				if (dx12_renderTexture->rtOwned)
+					dx12_renderTexture->descriptorHeap->Release();
+				dx12_renderTexture->resource->Release();
+			}
+
+			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, const char* bufferData, uint64_t bufferSize)
+			{
+				ID3D12Device2* deviceDX = (ID3D12Device2*)graphicsDevice;
+				assert(deviceDX != nullptr);
+
+				// Define the heap
+				D3D12_HEAP_PROPERTIES heapProperties = {};
+				heapProperties.Type = D3D12_HEAP_TYPE_DEFAULT;
+				heapProperties.CPUPageProperty = D3D12_CPU_PAGE_PROPERTY_UNKNOWN;
+				heapProperties.MemoryPoolPreference = D3D12_MEMORY_POOL_UNKNOWN;
+				// Not sure about this
+				heapProperties.VisibleNodeMask = 0xff;
+
+				// Define the resource descriptor
+				D3D12_RESOURCE_DESC resourceDescriptor = {};
+				resourceDescriptor.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+				resourceDescriptor.Width = bufferSize;
+				resourceDescriptor.Height = 1;
+				resourceDescriptor.DepthOrArraySize = 1;
+				resourceDescriptor.MipLevels = 0;
+				resourceDescriptor.Format = DXGI_FORMAT_UNKNOWN;
+				resourceDescriptor.SampleDesc = DXGI_SAMPLE_DESC{ 1, 0 };
+				resourceDescriptor.Alignment = 1;
+
+				// Resource states
+				D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
+
+				// Define the clear value
+				D3D12_CLEAR_VALUE clearValue;
+				clearValue.Format = DXGI_FORMAT_UNKNOWN;
+				memset(clearValue.Color, 0.0, 4 * sizeof(float));
+
+				// Create the resource
+				ID3D12Resource* buffer;
+				assert_msg(deviceDX->CreateCommittedResource(&heapProperties, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS, &resourceDescriptor, state, &clearValue, IID_PPV_ARGS(&buffer)) == S_OK, "Failed to create render target.");
+
+				// Return the opaque structure
+				return (GraphicsBuffer)buffer;
+			}
+
+			void destroy_graphics_buffer(GraphicsBuffer graphicsBuffer)
+			{
+				ID3D12Resource* dx12_buffer = (ID3D12Resource*)graphicsBuffer;
+				dx12_buffer->Release();
 			}
 		}
 

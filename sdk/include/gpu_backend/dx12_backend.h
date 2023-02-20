@@ -53,7 +53,7 @@ namespace graphics_sandbox
 			void destroy_swap_chain(SwapChain swapChain);
 
 			// Operations
-			RenderTarget get_current_render_target(SwapChain swapChain);
+			RenderTexture get_current_render_texture(SwapChain swapChain);
 			void present(SwapChain swapChain, CommandQueue commandQueue);
 		}
 
@@ -88,15 +88,20 @@ namespace graphics_sandbox
 			// Operations
 			void reset(CommandBuffer commandBuffer);
 			void close(CommandBuffer commandBuffer);
-			void set_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget);
-			void clear_render_target(CommandBuffer commandBuffer, RenderTarget renderTarget, const bento::Vector4& color);
-			void render_target_present(CommandBuffer commandBuffer, RenderTarget renderTarget);
+			void set_render_texture(CommandBuffer commandBuffer, RenderTexture renderTexture);
+			void clear_render_texture(CommandBuffer commandBuffer, RenderTexture renderTexture, const bento::Vector4& color);
+			void render_texture_present(CommandBuffer commandBuffer, RenderTexture renderTexture);
 		}
 
-		namespace render_target
+		namespace graphics_resources
 		{
-			RenderTarget create_render_target(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc);
-			void destroy_render_target(RenderTarget renderTarget);
+			// Render texture creation
+			RenderTexture create_render_texture(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc);
+			void destroy_render_texture(RenderTexture renderTarget);
+
+			// Buffer creation
+			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, const char* bufferData, uint64_t bufferSize);
+			void destroy_graphics_buffer(GraphicsBuffer graphicsBuffer);
 		}
 
 		namespace compute_shader

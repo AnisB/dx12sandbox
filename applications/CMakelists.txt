@@ -1,2 +1,5 @@
-bento_exe("helloWorld" "tests" "helloWorld.cpp" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${BENTO_SDK_INCLUDE}")
-target_link_libraries("helloWorld" "graphics_sandbox_sdk" "bento_sdk" "${D3D12_LIBRARIES}")
+bento_exe("clear_color_changer" "tests" "clear_color_changer.cpp" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${BENTO_SDK_INCLUDE}")
+target_link_libraries("clear_color_changer" "graphics_sandbox_sdk" "bento_sdk" "${D3D12_LIBRARIES}")
+
+bento_exe("simple_compute_pipeline" "tests" "simple_compute_pipeline.cpp" "${GRAPHICS_SANDBOX_SDK_INCLUDE};${BENTO_SDK_INCLUDE}")
+target_link_libraries("simple_compute_pipeline" "graphics_sandbox_sdk" "bento_sdk" "${D3D12_LIBRARIES}")

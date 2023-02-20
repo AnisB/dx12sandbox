@@ -19,7 +19,7 @@ void Render(CommandQueue commandQueue, CommandBuffer commandBuffer, SwapChain sw
 	command_buffer::reset(commandBuffer);
 
 	// Grab the current swap chain render target
-	RenderTarget renderTarget = swap_chain::get_current_render_target(swapChain);
+	RenderTexture renderTexture = swap_chain::get_current_render_texture(swapChain);
 
 	// Int that is going to be used for the color picking
 	uint64_t now = time(0) * 20;
@@ -31,10 +31,10 @@ void Render(CommandQueue commandQueue, CommandBuffer commandBuffer, SwapChain sw
 	b = ((now / (256 * 256)) % 256) / 255.0f;
 
 	// Clear the render target
-	command_buffer::clear_render_target(commandBuffer, renderTarget, bento::vector4(r, g, b, 1.0));
+	command_buffer::clear_render_texture(commandBuffer, renderTexture, bento::vector4(r, g, b, 1.0));
 
 	// Set the render target in present mode
-	command_buffer::render_target_present(commandBuffer, renderTarget);
+	command_buffer::render_texture_present(commandBuffer, renderTexture);
 
 	// Close the command buffer
 	command_buffer::close(commandBuffer);
