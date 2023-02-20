@@ -6,7 +6,7 @@ require 'optparse'
 
 # option variables
 $options = {}
-$compiler = ["vc14", "vc15", "makefile", "xcode"]
+$compiler = ["vc14", "vc15", "vc17", "makefile", "xcode"]
 $platform = ["win64", "osx", "linux"]
 $build = ["debug", "release"]
 
@@ -67,6 +67,8 @@ def get_generator_name()
 		generator += "\"Visual Studio 14 2015"
 	elsif $options[:compiler] == "vc16"
 		generator += "\"Visual Studio 16 2019\" "
+	elsif $options[:compiler] == "vc17"
+		generator += "\"Visual Studio 17 2022\" "
 	elsif $options[:compiler] == "makefile"
 		generator += "\"Unix Makefiles\""
 	else
@@ -75,7 +77,7 @@ def get_generator_name()
 	end
 
 	# Only append arch if not vc16
-	if not $options[:compiler] =="vc16"
+	if not $options[:compiler] =="vc16" and not $options[:compiler] =="vc17"
 		if $options[:platform] == "win64"
 			generator += " Win64\" "
 		end
