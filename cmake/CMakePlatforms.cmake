@@ -44,19 +44,7 @@ if( PLATFORM_WINDOWS )
 	set(CMAKE_VS_INCLUDE_INSTALL_TO_DEFAULT_BUILD 1)
 endif()
 
-# Find GLEW and enable it if possible
-FIND_PACKAGE(GLEW)
-if (GLEW_FOUND)
-	add_definitions(-DGLEW_SUPPORTED)
-endif()
-
-# Find GLFW and enable it if possible
-FIND_PACKAGE(GLFW)
-if (GLFW_FOUND)
-	add_definitions(-DGLFW_SUPPORTED)
-endif()
-
-# Find GLFW and enable it if possible
+# Find D3D12 and enable it if possible
 FIND_PACKAGE(D3D12)
 if (D3D12_FOUND)
 	add_definitions(-DD3D12_SUPPORTED)

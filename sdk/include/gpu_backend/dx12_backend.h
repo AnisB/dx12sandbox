@@ -8,6 +8,8 @@
 #include "gpu_backend/gpu_types.h"
 #include "gpu_backend/settings.h"
 #include "gpu_backend/render_target_descriptor.h"
+#include "gpu_backend/compute_shader_descriptor.h"
+#include "gpu_backend/graphics_buffer_type.h"
 
 namespace graphics_sandbox
 {
@@ -43,6 +45,7 @@ namespace graphics_sandbox
 
 			// Operation
 			void execute_command_buffer(CommandQueue commandQueue, CommandBuffer commandBuffer);
+			void flush(CommandQueue commandQueue);
 		}
 
 		// Swap Chain API
@@ -55,14 +58,6 @@ namespace graphics_sandbox
 			// Operations
 			RenderTexture get_current_render_texture(SwapChain swapChain);
 			void present(SwapChain swapChain, CommandQueue commandQueue);
-		}
-
-		// Descriptor Heap API
-		namespace descriptor_heap
-		{
-			// Creation and Destruction
-			DescriptorHeap create_descriptor_heap(GraphicsDevice graphicsDevice, uint32_t numDescriptors, bool isUAV, bool isDepthStencil);
-			void destroy_descriptor_heap(DescriptorHeap descriptorHeap);
 		}
 
 		// Fence API
@@ -91,6 +86,12 @@ namespace graphics_sandbox
 			void set_render_texture(CommandBuffer commandBuffer, RenderTexture renderTexture);
 			void clear_render_texture(CommandBuffer commandBuffer, RenderTexture renderTexture, const bento::Vector4& color);
 			void render_texture_present(CommandBuffer commandBuffer, RenderTexture renderTexture);
+			void copy_graphics_buffer(CommandBuffer commandBuffer, GraphicsBuffer inputBuffer, GraphicsBuffer outputBuffer);
+
+			// Compute operations
+			void set_compute_graphics_buffer_uav(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
+			void set_compute_graphics_buffer_srv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
+			void dispatch(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t sizeX, uint32_t sizeY, uint32_t sizeZ);
 		}
 
 		namespace graphics_resources
@@ -100,13 +101,21 @@ namespace graphics_sandbox
 			void destroy_render_texture(RenderTexture renderTarget);
 
 			// Buffer creation
-			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, const char* bufferData, uint64_t bufferSize);
+			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint64_t elementSize, GraphicsBufferType bufferType);
 			void destroy_graphics_buffer(GraphicsBuffer graphicsBuffer);
+
+			// Upload function
+			void set_data(GraphicsBuffer graphicsBuffer, char* buffer, uint64_t bufferSize);
+
+			// Readback functions
+			char* allocate_cpu_buffer(GraphicsBuffer graphicsBuffer);
+			void release_cpu_buffer(GraphicsBuffer graphicsBuffer);
 		}
 
 		namespace compute_shader
 		{
-			ComputeShader create_compute_shader(GraphicsDevice graphicsDevice);
+			ComputeShader create_compute_shader(GraphicsDevice graphicsDevice, const ComputeShaderDescriptor& computeShaderDescriptor);
+			void destroy_compute_shader(ComputeShader computeShader);
 		}
 	}
 }

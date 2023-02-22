@@ -35,7 +35,7 @@ find_path(DXGI_INCLUDE_DIR    # Set variable DXGI_INCLUDE_DIR
 set(D3D12_INCLUDE_DIRS ${D3D12_INCLUDE_DIR} ${DXGI_INCLUDE_DIR})
 
 # List of D3D libraries
-set(D3D12_LIBRARIES d3d12.lib dxgi.lib d3dcompiler.lib)
+set(D3D12_LIBRARIES d3d12.lib dxgi.lib d3dcompiler.lib dxcompiler.lib)
 
 include(FindPackageHandleStandardArgs)
 # handle the QUIETLY and REQUIRED arguments and set D3D12_FOUND to TRUE

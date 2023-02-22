@@ -1,0 +1,8 @@
+StructuredBuffer<uint> srcBuffer: register(t0);      // SRV
+RWStructuredBuffer<uint4> dstBuffer: register(u0);    // UAV
+
+[numthreads(64, 1, 1)]
+void SquareKernel(uint3 tid : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
+{
+	dstBuffer[tid.x] = uint4(srcBuffer[tid.x], WaveGetLaneIndex(), groupID.x, srcBuffer[tid.x] * srcBuffer[tid.x]);
+}
