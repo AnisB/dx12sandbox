@@ -15,8 +15,6 @@ namespace graphics_sandbox
 {
 	namespace d3d12
 	{
-		TGraphicSettings default_settings();
-
 		// Window API
 		namespace window
 		{
@@ -32,7 +30,7 @@ namespace graphics_sandbox
 		// Graphics Device API
 		namespace graphics_device
 		{
-			GraphicsDevice create_graphics_device();
+			GraphicsDevice create_graphics_device(bool enableDebug = false);
 			void destroy_graphics_device(GraphicsDevice graphicsDevice);
 		}
 
@@ -91,25 +89,33 @@ namespace graphics_sandbox
 			// Compute operations
 			void set_compute_graphics_buffer_uav(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
 			void set_compute_graphics_buffer_srv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
+			void set_compute_graphics_buffer_cbv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, ConstantBuffer constantBuffer);
 			void dispatch(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t sizeX, uint32_t sizeY, uint32_t sizeZ);
 		}
 
 		namespace graphics_resources
 		{
-			// Render texture creation
+			// Render texture
 			RenderTexture create_render_texture(GraphicsDevice graphicsDevice, RenderTextureDescriptor rtDesc);
 			void destroy_render_texture(RenderTexture renderTarget);
 
-			// Buffer creation
-			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint64_t elementSize, GraphicsBufferType bufferType);
+			// Graphics Buffers
+			GraphicsBuffer create_graphics_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint32_t elementSize, GraphicsBufferType bufferType);
 			void destroy_graphics_buffer(GraphicsBuffer graphicsBuffer);
-
-			// Upload function
 			void set_data(GraphicsBuffer graphicsBuffer, char* buffer, uint64_t bufferSize);
-
-			// Readback functions
 			char* allocate_cpu_buffer(GraphicsBuffer graphicsBuffer);
 			void release_cpu_buffer(GraphicsBuffer graphicsBuffer);
+
+			// Constant Buffers
+			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint32_t elementSize, uint64_t numElements);
+			void destroy_constant_buffer(ConstantBuffer constantBuffer);
+			void upload_constant_buffer(ConstantBuffer constantBuffer, const char* bufferData, uint32_t bufferSize);
+		}
+
+		namespace descriptor_heap
+		{
+			DescriptorHeap create_descriptor_heap(GraphicsDevice device, uint32_t numDescriptors, uint32_t type);
+			void destroy_descriptor_heap(DescriptorHeap descriptorHeap);
 		}
 
 		namespace compute_shader

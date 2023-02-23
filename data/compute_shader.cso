@@ -1,8 +1,16 @@
 StructuredBuffer<uint> srcBuffer: register(t0);      // SRV
 RWStructuredBuffer<uint4> dstBuffer: register(u0);    // UAV
 
+cbuffer cbBuffer : register(b0) // CBV0
+{
+	float data0;
+	float data1;
+	float data2;
+	float data3;
+};
+
 [numthreads(64, 1, 1)]
 void SquareKernel(uint3 tid : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
 {
-	dstBuffer[tid.x] = uint4(srcBuffer[tid.x], WaveGetLaneIndex(), groupID.x, srcBuffer[tid.x] * srcBuffer[tid.x]);
+	dstBuffer[tid.x] = uint4(srcBuffer[tid.x], WaveGetLaneIndex(), groupID.x, data3);
 }

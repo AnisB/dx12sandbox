@@ -49,7 +49,7 @@ void Render(CommandQueue commandQueue, CommandBuffer commandBuffer, SwapChain sw
 int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
 	// Define the initial settings
-    TGraphicSettings settings = d3d12::default_settings();
+    TGraphicSettings settings;
     settings.window_name = "DX12 Window";
     settings.data[0] = (uint64_t)hInstance;
 

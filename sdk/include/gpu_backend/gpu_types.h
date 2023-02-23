@@ -26,4 +26,5 @@ namespace graphics_sandbox
 	typedef uint64_t DescriptorHeap;
 	typedef uint64_t RenderTexture;
 	typedef uint64_t GraphicsBuffer;
+	typedef uint64_t ConstantBuffer;
 }

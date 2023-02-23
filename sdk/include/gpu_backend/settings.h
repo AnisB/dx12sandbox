@@ -9,14 +9,11 @@
 	
 namespace graphics_sandbox
 {
-	namespace RenderingBackEnd
+	enum class RenderingBackEnd
 	{
-		enum Type
-		{
-			DX12 = 0,
-			COUNT = 1
-		};
-	}
+		DX12 = 0,
+		COUNT = 1
+	};
 
 	struct TGraphicSettings
 	{
@@ -24,7 +21,17 @@ namespace graphics_sandbox
 		uint32_t width;
 		uint32_t height;
 		bool fullscreen;
-		RenderingBackEnd::Type backend;
+		RenderingBackEnd backend;
 		uint64_t data[5];
+
+		TGraphicSettings()
+		{
+			window_name = "Graphics Sandbox";
+			width = 1280;
+			height = 720;
+			fullscreen = false;
+			backend = RenderingBackEnd::DX12;
+			memset(data, 0, sizeof(data));
+		}
 	};
 }
