@@ -180,10 +180,10 @@ namespace graphics_sandbox
 				dx12_buffer->resource->Unmap(0, nullptr);
 			}
 
-			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint32_t bufferSize, uint64_t elementSize)
+			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint32_t elementSize)
 			{
 				// The size needs to be aligned on 256
-				uint32_t alignedSize = (bufferSize + (DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE - 1)) / DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE;
+				uint64_t alignedSize = (bufferSize + (DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE - 1)) / DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE;
 				DX12GraphicsBuffer* buffer = (DX12GraphicsBuffer*)create_graphics_buffer(graphicsDevice, alignedSize * DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE, elementSize, GraphicsBufferType::Upload);
 				return (ConstantBuffer)buffer;
 			}

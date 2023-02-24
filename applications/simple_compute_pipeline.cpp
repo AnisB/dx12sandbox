@@ -19,7 +19,7 @@ using namespace graphics_sandbox::d3d12;
 // Compute shader that we will be executing
 const char* shader_file_name = "C:/Temp/compute_shader.cso";
 const char* shader_kernel_name = "SquareKernel";
-const uint32_t numElements = 128;
+const uint32_t numElements = 1000000;
 const uint32_t workGroupSize = 64;
 
 // Constnat buffer
@@ -34,7 +34,7 @@ struct SimpleCB
 int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
 	// Create the graphics device
-	GraphicsDevice graphicsDevice = graphics_device::create_graphics_device(true);
+	GraphicsDevice graphicsDevice = graphics_device::create_graphics_device();
 
 	// Compile and create the compute shader
 	ComputeShaderDescriptor csd(*bento::common_allocator());
@@ -78,6 +78,8 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 	ConstantBuffer constantBuffer = graphics_resources::create_constant_buffer(graphicsDevice, sizeof(bento::Vector4) * 1, 1);
 	graphics_resources::upload_constant_buffer(constantBuffer, (const char*)&constantBufferCPU, sizeof(SimpleCB));
 
+	ProfilingScope profilingScope = profiling_scope::create_profiling_scope(graphicsDevice, commandQueue);
+
 	// Reset the command buffer
 	command_buffer::reset(commandBuffer);
 
@@ -91,7 +93,9 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 	command_buffer::set_compute_graphics_buffer_srv(commandBuffer, computeShader, 1, inputBuffer1);
 	command_buffer::set_compute_graphics_buffer_uav(commandBuffer, computeShader, 0, outputBuffer0);
 	command_buffer::set_compute_graphics_buffer_uav(commandBuffer, computeShader, 1, outputBuffer1);
+	command_buffer::enable_profiling_scope(commandBuffer, profilingScope);
 	command_buffer::dispatch(commandBuffer, computeShader, numElements / workGroupSize, 1, 1);
+	command_buffer::disable_profiling_scope(commandBuffer, profilingScope);
 
 	// Copy the output into the readback buffer
 	command_buffer::copy_graphics_buffer(commandBuffer, outputBuffer0, readbackBuffer0);
@@ -106,19 +110,19 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 	// Flush the queue
 	command_queue::flush(commandQueue);
 
+	std::cout << "Dispatch duration: " << profiling_scope::get_duration_us(profilingScope) <<  " microseconds" << std::endl;
+
 	// Create a cpu view on the readback buffer
-	std::cout << "First Buffer" << std::endl;
 	uint32_t* outputData = (uint32_t*) graphics_resources::allocate_cpu_buffer(readbackBuffer0);
 	for (uint32_t idx = 0; idx < numElements; ++idx)
 	{
 		assert_msg(outputData[4 * idx] == idx, "Failure 0");
 		assert_msg(outputData[4 * idx + 1] == 7, "Failure 1");
 		assert_msg(outputData[4 * idx + 3] == 5, "Failure 2");
-		//std::cout << outputData[4 * idx] << ", " << outputData[4 * idx + 1] << ", " << outputData[4 * idx + 2] << ", " << outputData[4 * idx + 3] << std::endl;
+		// std::cout << outputData[4 * idx] << ", " << outputData[4 * idx + 1] << ", " << outputData[4 * idx + 2] << ", " << outputData[4 * idx + 3] << std::endl;
 	}
 	graphics_resources::release_cpu_buffer(readbackBuffer0);
 
-	std::cout << "Second Buffer" << std::endl;
 	outputData = (uint32_t*)graphics_resources::allocate_cpu_buffer(readbackBuffer1);
 	for (uint32_t idx = 0; idx < numElements; ++idx)
 	{

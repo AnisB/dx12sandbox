@@ -22,6 +22,9 @@ namespace graphics_sandbox
 		#define DX12_NUM_BACK_BUFFERS 2
 		#define DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE 256
 
+		// Declarations
+		struct DX12Query;
+
 		struct DX12Window
 		{
 			HWND window;
@@ -40,6 +43,7 @@ namespace graphics_sandbox
 		{
 			ID3D12CommandQueue* queue;
 			ID3D12Fence* fence;
+			HANDLE fenceEvent;
 			uint64_t fenceValue;
 		};
 
@@ -106,6 +110,14 @@ namespace graphics_sandbox
 			uint64_t bufferSize;
 			uint32_t elementSize;
 			GraphicsBufferType type;
+		};
+
+		struct DX12Query
+		{
+			ID3D12QueryHeap* heap;
+			ID3D12Resource* result;
+			D3D12_RESOURCE_STATES state;
+			uint64_t frequency;
 		};
 
 		// Conversion methods

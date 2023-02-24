@@ -91,6 +91,10 @@ namespace graphics_sandbox
 			void set_compute_graphics_buffer_srv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
 			void set_compute_graphics_buffer_cbv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, ConstantBuffer constantBuffer);
 			void dispatch(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t sizeX, uint32_t sizeY, uint32_t sizeZ);
+		
+			// Profiling
+			void enable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope scope);
+			void disable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope scope);
 		}
 
 		namespace graphics_resources
@@ -107,7 +111,7 @@ namespace graphics_sandbox
 			void release_cpu_buffer(GraphicsBuffer graphicsBuffer);
 
 			// Constant Buffers
-			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint32_t elementSize, uint64_t numElements);
+			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint32_t elementSize);
 			void destroy_constant_buffer(ConstantBuffer constantBuffer);
 			void upload_constant_buffer(ConstantBuffer constantBuffer, const char* bufferData, uint32_t bufferSize);
 		}
@@ -122,6 +126,13 @@ namespace graphics_sandbox
 		{
 			ComputeShader create_compute_shader(GraphicsDevice graphicsDevice, const ComputeShaderDescriptor& computeShaderDescriptor);
 			void destroy_compute_shader(ComputeShader computeShader);
+		}
+
+		namespace profiling_scope
+		{
+			ProfilingScope create_profiling_scope(GraphicsDevice graphicsDevice, CommandQueue commandQueue);
+			void destroy_profiling_scope(ProfilingScope profilingScope);
+			uint64_t get_duration_us(ProfilingScope profilingScope);
 		}
 	}
 }

@@ -214,7 +214,7 @@ namespace graphics_sandbox
 				// Create the view in the compute's heap
 				D3D12_CONSTANT_BUFFER_VIEW_DESC cbvView;
 				cbvView.BufferLocation = buffer->resource->GetGPUVirtualAddress();
-				cbvView.SizeInBytes = buffer->bufferSize;
+				cbvView.SizeInBytes = (uint32_t)buffer->bufferSize;
 
 				// Compute the slot on the heap
 				D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle(dx12_cs->cbvCPU);
@@ -226,20 +226,38 @@ namespace graphics_sandbox
 
 			void dispatch(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t sizeX, uint32_t sizeY, uint32_t sizeZ)
 			{
-				DX12CommandBuffer* dx12_cmd = (DX12CommandBuffer*)commandBuffer;
+				DX12CommandBuffer* cmdI = (DX12CommandBuffer*)commandBuffer;
 				DX12ComputeShader* dx12_cs = (DX12ComputeShader*)computeShader;
 
 				// Bind the root descriptor tables
 				ID3D12DescriptorHeap* ppHeaps[] = { dx12_cs->descriptorHeap};
-				dx12_cmd->cmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
-				dx12_cmd->cmdList->SetComputeRootSignature(dx12_cs->rootSignature);
-				dx12_cmd->cmdList->SetComputeRootDescriptorTable(0, dx12_cs->srvGPU);
-				dx12_cmd->cmdList->SetComputeRootDescriptorTable(1, dx12_cs->uavGPU);
-				dx12_cmd->cmdList->SetComputeRootDescriptorTable(2, dx12_cs->cbvGPU);
+				cmdI->cmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+				cmdI->cmdList->SetComputeRootSignature(dx12_cs->rootSignature);
+				cmdI->cmdList->SetComputeRootDescriptorTable(0, dx12_cs->srvGPU);
+				cmdI->cmdList->SetComputeRootDescriptorTable(1, dx12_cs->uavGPU);
+				cmdI->cmdList->SetComputeRootDescriptorTable(2, dx12_cs->cbvGPU);
 
 				// Bind the shader and dispatch it
-				dx12_cmd->cmdList->SetPipelineState(dx12_cs->pipelineStateObject);
-				dx12_cmd->cmdList->Dispatch(sizeX, sizeY, sizeZ);
+				cmdI->cmdList->SetPipelineState(dx12_cs->pipelineStateObject);
+				cmdI->cmdList->Dispatch(sizeX, sizeY, sizeZ);
+			}
+
+			void enable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope profilingScope)
+			{
+				DX12CommandBuffer* cmdI = (DX12CommandBuffer*)commandBuffer;
+				DX12Query* query = (DX12Query*)profilingScope;
+				cmdI->cmdList->EndQuery(query->heap, D3D12_QUERY_TYPE_TIMESTAMP, 0);
+			}
+
+			void disable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope profilingScope)
+			{
+				DX12CommandBuffer* cmdI = (DX12CommandBuffer*)commandBuffer;
+				DX12Query* query = (DX12Query*)profilingScope;
+				cmdI->cmdList->EndQuery(query->heap, D3D12_QUERY_TYPE_TIMESTAMP, 1);
+				cmdI->deviceI->device->SetStablePowerState(false);
+
+				// Resolve the occlusion query and store the results in the query result buffer to be used on the subsequent frame.
+				cmdI->cmdList->ResolveQueryData(query->heap, D3D12_QUERY_TYPE_TIMESTAMP, 0, 2, query->result, 0);
 			}
 		}
 	}

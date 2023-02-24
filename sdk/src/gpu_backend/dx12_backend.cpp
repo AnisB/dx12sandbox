@@ -105,6 +105,8 @@ namespace graphics_sandbox
 				DX12CommandQueue* dx12_commandQueue = bento::make_new<DX12CommandQueue>(*bento::common_allocator());
 				dx12_commandQueue->queue = commandQueue;
 				dx12_commandQueue->fence = (ID3D12Fence*)fence::create_fence(graphicsDevice);
+				dx12_commandQueue->fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+
 				dx12_commandQueue->fenceValue = 0;
 				return (CommandQueue)dx12_commandQueue;
 			}
@@ -130,11 +132,10 @@ namespace graphics_sandbox
 			void flush(CommandQueue commandQueue)
 			{
 				DX12CommandQueue* dx12_commandQueue = (DX12CommandQueue*)commandQueue;
-				dx12_commandQueue->queue->Signal(dx12_commandQueue->fence, dx12_commandQueue->fenceValue);
-				HANDLE handle = CreateEvent(nullptr, FALSE, FALSE, nullptr);
-				dx12_commandQueue->fence->SetEventOnCompletion(dx12_commandQueue->fenceValue, handle);
-				WaitForSingleObject(handle, INFINITE);
 				dx12_commandQueue->fenceValue++;
+				dx12_commandQueue->queue->Signal(dx12_commandQueue->fence, dx12_commandQueue->fenceValue);
+				dx12_commandQueue->fence->SetEventOnCompletion(dx12_commandQueue->fenceValue, dx12_commandQueue->fenceEvent);
+				WaitForSingleObject(dx12_commandQueue->fenceEvent, INFINITE);
 			}
 		}
 
@@ -272,6 +273,63 @@ namespace graphics_sandbox
 					assert_msg(fenceDX->SetEventOnCompletion(fenceValue, fenceEventDX) == S_OK, "Failed to wait on fence.");
 					WaitForSingleObject(fenceEventDX, (DWORD)maxTime);
 				}
+			}
+		}
+
+		namespace profiling_scope
+		{
+			ProfilingScope create_profiling_scope(GraphicsDevice graphicsDevice, CommandQueue commandQueue)
+			{
+				// Grab the device
+				DX12GraphicsDevice* deviceI = (DX12GraphicsDevice*)graphicsDevice;
+				DX12CommandQueue* cmdQueueI = (DX12CommandQueue*)commandQueue;
+
+				// Create the query heap
+				D3D12_QUERY_HEAP_DESC queryHeapDesc = {};
+				queryHeapDesc.Count = 2;
+				queryHeapDesc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
+				ID3D12QueryHeap* queryHeap;
+				assert_msg(deviceI->device->CreateQueryHeap(&queryHeapDesc, IID_PPV_ARGS(&queryHeap)) == S_OK, "Failed to create query.");
+
+				// Define the resource descriptor
+				D3D12_RESOURCE_DESC resourceDescriptor = { D3D12_RESOURCE_DIMENSION_BUFFER, 0, sizeof(uint64_t) * 2, 1, 1, 1, DXGI_FORMAT_UNKNOWN, 1, 0, D3D12_TEXTURE_LAYOUT_ROW_MAJOR, D3D12_RESOURCE_FLAG_NONE };
+
+				D3D12_HEAP_PROPERTIES heap;
+				memset(&heap, 0, sizeof(heap));
+				heap.Type = D3D12_HEAP_TYPE_READBACK;
+
+				// Create the resource
+				ID3D12Resource* buffer;
+				assert_msg(deviceI->device->CreateCommittedResource(&heap, D3D12_HEAP_FLAG_NONE, &resourceDescriptor, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(&buffer)) == S_OK, "Failed to create the graphics buffer.");
+				
+				// Create and fill the internal structure
+				DX12Query* queryI = bento::make_new<DX12Query>(*bento::common_allocator());
+				queryI->heap = queryHeap;
+				queryI->state = D3D12_RESOURCE_STATE_PREDICATION;
+				queryI->result = buffer;
+				assert_msg(cmdQueueI->queue->GetTimestampFrequency(&queryI->frequency) == S_OK, "Failed to get the GPU frequency.");
+
+				// Convert to the opaque structure
+				return (ProfilingScope)queryI;
+			}
+
+			void destroy_profiling_scope(ProfilingScope profilingScope)
+			{
+				DX12Query* query = (DX12Query*)profilingScope;
+				query->heap->Release();
+				query->result->Release();
+				bento::make_delete<DX12Query>(*bento::common_allocator(), query);
+			}
+
+			uint64_t get_duration_us(ProfilingScope profilingScope)
+			{
+				DX12Query* query = (DX12Query*)profilingScope;
+				char* data = nullptr;
+				D3D12_RANGE range = { 0, sizeof(uint64_t) * 2 };
+				query->result->Map(0, &range, (void**)&data);
+				uint64_t profileDuration = ((uint64_t*)data)[1] - ((uint64_t*)data)[0];
+				query->result->Unmap(0, nullptr);
+				return (uint64_t)(profileDuration / (double)query->frequency * 1e6);
 			}
 		}
 	}
