@@ -2,6 +2,7 @@
 
 // Bento includes
 #include <bento_base/platform.h>
+#include <bento_collection/vector.h>
 
 // SDK includes
 #include "gpu_backend/graphics_format.h"
@@ -52,6 +53,7 @@ namespace graphics_sandbox
 			DX12GraphicsDevice* deviceI;
 			ID3D12CommandAllocator* cmdAlloc;
 			ID3D12GraphicsCommandList* cmdList;
+			uint32_t batchIdentifier;
 		};
 
 		struct DX12RenderTexture
@@ -80,11 +82,8 @@ namespace graphics_sandbox
 			DX12RenderTexture backBufferRenderTexture[DX12_NUM_BACK_BUFFERS];
 		};
 
-		struct DX12ComputeShader
+		struct DX12DescriptorHeap
 		{
-			IDxcBlob* shaderBlob;
-			ID3D12RootSignature* rootSignature;
-			ID3D12PipelineState* pipelineStateObject;
 			ID3D12DescriptorHeap* descriptorHeap;
 
 			// GPU Handles for every resource type
@@ -96,11 +95,51 @@ namespace graphics_sandbox
 			D3D12_CPU_DESCRIPTOR_HANDLE srvCPU;
 			D3D12_CPU_DESCRIPTOR_HANDLE uavCPU;
 			D3D12_CPU_DESCRIPTOR_HANDLE cbvCPU;
+		};
+
+		struct DX12ComputeShader
+		{
+			ALLOCATOR_BASED;
+
+			DX12ComputeShader(bento::IAllocator& allocator)
+			: _allocator(allocator)
+			, device(nullptr)
+			, shaderBlob(nullptr)
+			, rootSignature(nullptr)
+			, pipelineStateObject(nullptr)
+			, srvCount(0)
+			, uavCount(0)
+			, cbvCount(0)
+			, srvIndex(0)
+			, uavIndex(0)
+			, cbvIndex(0)
+			, cmdBatchIndex(0)
+			, nextUsableHeap(0)
+			, descriptorHeaps(allocator)
+			{
+			}
+
+			// General
+			DX12GraphicsDevice* device;
+			IDxcBlob* shaderBlob;
+			ID3D12RootSignature* rootSignature;
+			ID3D12PipelineState* pipelineStateObject;
 
 			// Number of resources
 			uint32_t srvCount;
 			uint32_t uavCount;
 			uint32_t cbvCount;
+
+			// Resources indices
+			uint32_t srvIndex;
+			uint32_t uavIndex;
+			uint32_t cbvIndex;
+
+			// Set of descriptor heaps that can be used for this
+			uint32_t cmdBatchIndex;
+			uint32_t nextUsableHeap;
+			bento::Vector<DX12DescriptorHeap> descriptorHeaps;
+			bento::IAllocator& _allocator;
 		};
 
 		struct DX12GraphicsBuffer

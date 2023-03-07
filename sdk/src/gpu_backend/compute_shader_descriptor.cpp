@@ -7,6 +7,7 @@ namespace graphics_sandbox
 	: _allocator(allocator)
 	, filename(allocator)
 	, kernelname(allocator)
+	, includeDirectories(allocator)
 	{
 	}
 }

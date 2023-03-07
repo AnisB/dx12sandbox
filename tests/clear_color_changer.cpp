@@ -7,7 +7,7 @@
 #include <bento_math/vector4.h>
 
 // Graphics API include
-#include "gpu_backend/dx12_backend.h"
+#include "d3d12_backend/dx12_backend.h"
 #include "gpu_backend/event_collector.h"
 
 using namespace graphics_sandbox;

@@ -4,7 +4,7 @@ project(graphics_sandbox)
 # Declare the global variables for the cmake project
 set(BENTO_SDK_ROOT ${PROJECT_SOURCE_DIR}/bento)
 set(GRAPHICS_SANDBOX_SDK_ROOT ${PROJECT_SOURCE_DIR}/sdk)
-set(GRAPHICS_SANDBOX_APPLICATIONS_ROOT ${PROJECT_SOURCE_DIR}/applications)
+set(GRAPHICS_SANDBOX_TESTS_ROOT ${PROJECT_SOURCE_DIR}/tests)
 set(GRAPHICS_SANDBOX_3RD_INCLUDES ${PROJECT_SOURCE_DIR}/3rd/win32/include)
 
 # Set the cmake path variable
@@ -35,4 +35,4 @@ add_subdirectory(${BENTO_SDK_ROOT}/src)
 add_subdirectory(${GRAPHICS_SANDBOX_SDK_ROOT}/src)
 
 # Adding the applications if we should
-add_subdirectory(${GRAPHICS_SANDBOX_APPLICATIONS_ROOT})
+add_subdirectory(${GRAPHICS_SANDBOX_TESTS_ROOT})

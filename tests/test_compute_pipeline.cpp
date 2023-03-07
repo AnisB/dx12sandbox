@@ -11,15 +11,15 @@
 #include <bento_tools/statistics.h>
 
 // Graphics API include
-#include "gpu_backend/dx12_backend.h"
+#include "d3d12_backend/dx12_backend.h"
 #include "gpu_backend/event_collector.h"
 
 using namespace graphics_sandbox;
 using namespace graphics_sandbox::d3d12;
 
 // Compute shader that we will be executing
-const char* shader_file_name = "C:/Temp/compute_shader.cso";
-const char* shader_kernel_name = "SquareKernel";
+const char* shader_file_name = "BasicComputeShader.compute";
+const char* shader_kernel_name = "BasicKernel";
 const uint32_t numElements = 1000000;
 const uint32_t workGroupSize = 64;
 const uint32_t numIterations = 1000;
@@ -35,12 +35,25 @@ struct SimpleCB
 
 int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine, int nCmdShow)
 {
+    // The root directory was not specified in this case
+    if (__argc < 2)
+    {
+        printf("[ERROR] Repository path not specified\n");
+        return -1;
+    }
+
     // Create the graphics device
     GraphicsDevice graphicsDevice = graphics_device::create_graphics_device();
 
+    // Location of the shader library
+    bento::DynamicString shaderLibrary(*bento::common_allocator(), __argv[1]);
+    shaderLibrary += "\\shaders";
+
     // Compile and create the compute shader
     ComputeShaderDescriptor csd(*bento::common_allocator());
-    csd.filename = shader_file_name;
+    csd.filename = shaderLibrary;
+    csd.filename += "\\";
+    csd.filename += shader_file_name;
     csd.kernelname = shader_kernel_name;
     csd.srvCount = 2;
     csd.uavCount = 2;
@@ -77,7 +90,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 
     // Create the constant buffer
     SimpleCB constantBufferCPU = { 2, 3, 4, 5 };
-    ConstantBuffer constantBuffer = graphics_resources::create_constant_buffer(graphicsDevice, sizeof(bento::Vector4) * 1, 1);
+    ConstantBuffer constantBuffer = graphics_resources::create_constant_buffer(graphicsDevice, sizeof(bento::Vector4) * 1, 1, ConstantBufferType::Static);
     graphics_resources::upload_constant_buffer(constantBuffer, (const char*)&constantBufferCPU, sizeof(SimpleCB));
 
     // Create the profiling scope that will allow us to evaluate the dispatch duration
@@ -144,6 +157,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     graphics_resources::release_cpu_buffer(readbackBuffer1);
 
     // Release the grpahics buffer
+    graphics_resources::destroy_constant_buffer(constantBuffer);
     graphics_resources::destroy_graphics_buffer(readbackBuffer1);
     graphics_resources::destroy_graphics_buffer(outputBuffer1);
     graphics_resources::destroy_graphics_buffer(readbackBuffer0);

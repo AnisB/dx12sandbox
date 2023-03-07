@@ -4,8 +4,8 @@
 #include <bento_base/log.h>
 
 // Internal includes
-#include "gpu_backend/dx12_backend.h"
-#include "gpu_backend/dx12_containers.h"
+#include "d3d12_backend/dx12_backend.h"
+#include "d3d12_backend/dx12_containers.h"
 
 namespace graphics_sandbox
 {

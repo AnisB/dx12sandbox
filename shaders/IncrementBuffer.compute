@@ -1,0 +1,15 @@
+RWStructuredBuffer<uint> dstBuffer: register(u0);    // UAV
+
+cbuffer SimpleCB : register(b0) // CBV0
+{
+    uint _Increment;
+    uint _Padding0;
+    uint _Padding1;
+    uint _Padding2;
+};
+
+[numthreads(32, 1, 1)]
+void IncrementBuffer(uint3 tid : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
+{
+	dstBuffer[tid.x] = dstBuffer[tid.x] + _Increment;
+}

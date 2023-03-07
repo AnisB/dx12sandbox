@@ -4,8 +4,8 @@
 #include <bento_base/log.h>
 
 // Internal includes
-#include "gpu_backend/dx12_backend.h"
-#include "gpu_backend/dx12_containers.h"
+#include "d3d12_backend/dx12_backend.h"
+#include "d3d12_backend/dx12_containers.h"
 
 namespace graphics_sandbox
 {
@@ -180,11 +180,11 @@ namespace graphics_sandbox
 				dx12_buffer->resource->Unmap(0, nullptr);
 			}
 
-			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint32_t elementSize)
+			ConstantBuffer create_constant_buffer(GraphicsDevice graphicsDevice, uint64_t bufferSize, uint32_t elementSize, ConstantBufferType bufferType)
 			{
 				// The size needs to be aligned on 256
 				uint64_t alignedSize = (bufferSize + (DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE - 1)) / DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE;
-				DX12GraphicsBuffer* buffer = (DX12GraphicsBuffer*)create_graphics_buffer(graphicsDevice, alignedSize * DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE, elementSize, GraphicsBufferType::Upload);
+				DX12GraphicsBuffer* buffer = (DX12GraphicsBuffer*)create_graphics_buffer(graphicsDevice, alignedSize * DX12_CONSTANT_BUFFER_ALIGNEMENT_SIZE, elementSize, bufferType == ConstantBufferType::Static ? GraphicsBufferType::Upload : GraphicsBufferType::Default);
 				return (ConstantBuffer)buffer;
 			}
 
@@ -197,7 +197,8 @@ namespace graphics_sandbox
 			void upload_constant_buffer(ConstantBuffer constantBuffer, const char* bufferData, uint32_t bufferSize)
 			{
 				DX12GraphicsBuffer* buffer = (DX12GraphicsBuffer*)constantBuffer;
-				D3D12_RANGE readRange = { 0, 0 };
+				assert_msg(buffer->type == GraphicsBufferType::Upload, "An upload operation can only be done on an upload constant buffer.");
+				D3D12_RANGE readRange = { 0, bufferSize};
 				uint8_t* cbvDataBegin;
 				buffer->resource->Map(0, &readRange, reinterpret_cast<void**>(&cbvDataBegin));
 				memcpy(cbvDataBegin, bufferData, bufferSize);

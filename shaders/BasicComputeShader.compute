@@ -12,7 +12,7 @@ cbuffer cbBuffer : register(b0) // CBV0
 };
 
 [numthreads(64, 1, 1)]
-void SquareKernel(uint3 tid : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
+void BasicKernel(uint3 tid : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
 {
 	dstBuffer0[tid.x] = uint4(srcBuffer0[tid.x], 7, WaveGetLaneIndex(), data3);
 	dstBuffer1[tid.x] = uint4(srcBuffer1[tid.x], 9, WaveGetLaneIndex(), data1);

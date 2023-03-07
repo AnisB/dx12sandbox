@@ -1,5 +1,5 @@
 // SDK includs
-#include "gpu_backend/dx12_containers.h"
+#include "d3d12_backend/dx12_containers.h"
 
 // Bento includes
 #include <bento_base/security.h>
