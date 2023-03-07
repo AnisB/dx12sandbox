@@ -73,7 +73,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     // Fill the first input buffer
     std::vector<uint32_t> inputBufferCPU0(numElements);
     std::vector<uint32_t> inputBufferCPU1(numElements);
-    for (int i = 0; i < numElements; ++i)
+    for (uint32_t i = 0; i < numElements; ++i)
     {
         inputBufferCPU0[i] = i;
         inputBufferCPU1[i] =  2 * i;
@@ -83,7 +83,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 
     // Create all the constant buffers
     std::vector<ConstantBuffer> constantBufferArray;
-    for (int iter = 0; iter < numIterations; ++iter)
+    for (uint32_t iter = 0; iter < numIterations; ++iter)
     {
         ConstantBuffer constantBufferUpload = graphics_resources::create_constant_buffer(graphicsDevice, sizeof(SimpleCB), sizeof(SimpleCB), ConstantBufferType::Static);
         SimpleCB constantBufferCPU = { iter, 0, 0, 0 };
@@ -97,7 +97,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     command_buffer::copy_graphics_buffer(commandBuffer, uploadBuffer0, buffer0);
     command_buffer::copy_graphics_buffer(commandBuffer, uploadBuffer1, buffer1);
 
-    for (int iter = 0; iter < numIterations; ++iter)
+    for (uint32_t iter = 0; iter < numIterations; ++iter)
     {
         command_buffer::copy_constant_buffer(commandBuffer, constantBufferArray[iter], constantBufferRuntime);
 
@@ -129,7 +129,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
 
     // Expected added value
     uint32_t totalValue = 0;
-    for (int i = 0; i < numIterations; ++i)
+    for (uint32_t i = 0; i < numIterations; ++i)
         totalValue += i;
 
     // Create a cpu view on the readback buffer
@@ -145,7 +145,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     graphics_resources::release_cpu_buffer(readbackBuffer1);
 
     // Destroy all the constant buffers
-    for (int iter = 0; iter < numIterations; ++iter)
+    for (uint32_t iter = 0; iter < numIterations; ++iter)
         graphics_resources::destroy_constant_buffer(constantBufferArray[iter]);
 
     // Release the grpahics buffer
