@@ -6,6 +6,9 @@ set(BENTO_SDK_ROOT ${PROJECT_SOURCE_DIR}/bento)
 set(GRAPHICS_SANDBOX_SDK_ROOT ${PROJECT_SOURCE_DIR}/sdk)
 set(GRAPHICS_SANDBOX_TESTS_ROOT ${PROJECT_SOURCE_DIR}/tests)
 set(GRAPHICS_SANDBOX_3RD_INCLUDES ${PROJECT_SOURCE_DIR}/3rd/win32/include)
+set(GRAPHICS_SANDBOX_CAPI_ROOT ${PROJECT_SOURCE_DIR}/c_api)
+set(GRAPHICS_SANDBOX_CAPI_INCLUDE ${GRAPHICS_SANDBOX_CAPI_ROOT}/include)
+set(GRAPHICS_SANDBOX_CAPI_SRC ${GRAPHICS_SANDBOX_CAPI_ROOT}/src)
 
 # Set the cmake path variable
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake")
@@ -33,6 +36,9 @@ add_subdirectory(${BENTO_SDK_ROOT}/src)
 
 # Generate the graphics_sandbox SDK
 add_subdirectory(${GRAPHICS_SANDBOX_SDK_ROOT}/src)
+
+# Generate the c api library
+add_subdirectory(${GRAPHICS_SANDBOX_CAPI_SRC})
 
 # Adding the applications if we should
 add_subdirectory(${GRAPHICS_SANDBOX_TESTS_ROOT})

@@ -43,7 +43,7 @@ int CALLBACK main(HINSTANCE hInstance, HINSTANCE hPrevInstance, PWSTR lpCmdLine,
     }
 
     // Create the graphics device
-    GraphicsDevice graphicsDevice = graphics_device::create_graphics_device();
+    GraphicsDevice graphicsDevice = graphics_device::create_graphics_device(true);
 
     // Location of the shader library
     bento::DynamicString shaderLibrary(*bento::common_allocator(), __argv[1]);

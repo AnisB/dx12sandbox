@@ -94,6 +94,7 @@ namespace graphics_sandbox
 
                 bento::Vector<LPCWSTR> arguments(*bento::common_allocator());
                 arguments.push_back(L"-O3");
+                arguments.push_back(L"-enable-16bit-types");
                 for (uint32_t includeDirIdx = 0; includeDirIdx < csd.includeDirectories.size(); ++includeDirIdx)
                     arguments.push_back(includeDirs[includeDirIdx].c_str());
 
@@ -101,9 +102,13 @@ namespace graphics_sandbox
                 IDxcCompiler* compiler;
                 DxcCreateInstance(CLSID_DxcCompiler, IID_PPV_ARGS(&compiler));
 
+                // Create an include handler
+                IDxcIncludeHandler* includeHandler;
+                library->CreateIncludeHandler(&includeHandler);
+            
                 // Compile the shader
                 IDxcOperationResult* result;
-                HRESULT hr = compiler->Compile(source_blob, filename.c_str(), kernelName.c_str(), L"cs_6_4", arguments.begin(), arguments.size(), nullptr, 0, nullptr, &result);
+                HRESULT hr = compiler->Compile(source_blob, filename.c_str(), kernelName.c_str(), L"cs_6_4", arguments.begin(), arguments.size(), nullptr, 0, includeHandler, &result);
                 if (SUCCEEDED(hr))
                     result->GetStatus(&hr);
                 bool compile_succeed = SUCCEEDED(hr);

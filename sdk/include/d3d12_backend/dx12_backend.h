@@ -31,7 +31,7 @@ namespace graphics_sandbox
         // Graphics Device API
         namespace graphics_device
         {
-            GraphicsDevice create_graphics_device(bool enableDebug = false);
+            GraphicsDevice create_graphics_device(bool enableDebug = false, uint32_t preferred_adapter = UINT32_MAX, bool stable_power_state = false);
             void destroy_graphics_device(GraphicsDevice graphicsDevice);
         }
 
@@ -94,7 +94,7 @@ namespace graphics_sandbox
             void set_compute_graphics_buffer_srv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, GraphicsBuffer graphicsBuffer);
             void set_compute_graphics_buffer_cbv(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t slot, ConstantBuffer constantBuffer);
             void dispatch(CommandBuffer commandBuffer, ComputeShader computeShader, uint32_t sizeX, uint32_t sizeY, uint32_t sizeZ);
-        
+            
             // Profiling
             void enable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope scope);
             void disable_profiling_scope(CommandBuffer commandBuffer, ProfilingScope scope);

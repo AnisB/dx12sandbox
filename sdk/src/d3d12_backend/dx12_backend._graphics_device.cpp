@@ -9,85 +9,97 @@
 
 namespace graphics_sandbox
 {
-	namespace d3d12
-	{
-		namespace graphics_device
-		{
-			// On DX12 to create a graphics device, we need to fetch the adapter of the right device.
-			IDXGIAdapter4* GetAdapter()
-			{
-				// Create the DXGI factory
-				IDXGIFactory4* dxgiFactory;
-				UINT createFactoryFlags = 0;
-				assert_msg(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory)) == S_OK, "DXGI Factory 2 failed.");
+    namespace d3d12
+    {
+        namespace graphics_device
+        {
+            // On DX12 to create a graphics device, we need to fetch the adapter of the right device.
+            IDXGIAdapter4* GetAdapter(uint32_t preferred_adapter)
+            {
+                // Create the DXGI factory
+                IDXGIFactory4* dxgiFactory;
+                UINT createFactoryFlags = 0;
+                assert_msg(CreateDXGIFactory2(createFactoryFlags, IID_PPV_ARGS(&dxgiFactory)) == S_OK, "DXGI Factory 2 failed.");
 
-				// Loop through all the available dapters
-				IDXGIAdapter1* dxgiAdapter1;
-				IDXGIAdapter4* dxgiAdapter4 = nullptr;
-				SIZE_T maxDedicatedVideoMemory = 0;
-				for (UINT i = 0; dxgiFactory->EnumAdapters1(i, &dxgiAdapter1) != DXGI_ERROR_NOT_FOUND; ++i)
-				{
-					DXGI_ADAPTER_DESC1 dxgiAdapterDesc1;
-					dxgiAdapter1->GetDesc1(&dxgiAdapterDesc1);
+                // Loop through all the available dapters
+                IDXGIAdapter1* dxgiAdapter1;
+                IDXGIAdapter4* dxgiAdapter4 = nullptr;
+                SIZE_T maxDedicatedVideoMemory = 0;
+                DXGI_ADAPTER_DESC1 actualDescriptor;
+                for (UINT i = 0; dxgiFactory->EnumAdapters1(i, &dxgiAdapter1) != DXGI_ERROR_NOT_FOUND; ++i)
+                {
+                    DXGI_ADAPTER_DESC1 dxgiAdapterDesc1;
+                    dxgiAdapter1->GetDesc1(&dxgiAdapterDesc1);
 
-					// Check to see if the adapter can create a D3D12 device without actually creating it. The adapter with the largest dedicated video memory is favored.
-					if ((dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 && SUCCEEDED(D3D12CreateDevice(dxgiAdapter1, D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)) &&
-						dxgiAdapterDesc1.DedicatedVideoMemory > maxDedicatedVideoMemory)
-					{
-						maxDedicatedVideoMemory = dxgiAdapterDesc1.DedicatedVideoMemory;
-						dxgiAdapter4 = (IDXGIAdapter4*)dxgiAdapter1;
-						assert_msg(dxgiAdapter4 != nullptr, "Failed to convert DXGI Adapter from 1 to 4.");
-					}
-				}
+                    // Print data about the actually picked GPU
+                    wprintf(L"Candidate %u GPU: %s\n", i, dxgiAdapterDesc1.Description);
 
-				// Do not forget to release the resources
-				dxgiFactory->Release();
+                    // Check to see if the adapter can create a D3D12 device without actually creating it. The adapter with the largest dedicated video memory is favored.
+                    bool usableGPU = (dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 && SUCCEEDED(D3D12CreateDevice(dxgiAdapter1, D3D_FEATURE_LEVEL_12_2, __uuidof(ID3D12Device), nullptr));
+                    if (usableGPU && ((preferred_adapter == UINT32_MAX && dxgiAdapterDesc1.DedicatedVideoMemory >= maxDedicatedVideoMemory) || preferred_adapter == i))
+                    {
+                        maxDedicatedVideoMemory = dxgiAdapterDesc1.DedicatedVideoMemory;
+                        dxgiAdapter4 = (IDXGIAdapter4*)dxgiAdapter1;
+                        assert_msg(dxgiAdapter4 != nullptr, "Failed to convert DXGI Adapter from 1 to 4.");
+                        actualDescriptor = dxgiAdapterDesc1;
+                        if (preferred_adapter == i) break;
+                    }
+                }
 
-				// Return the adapter
-				return dxgiAdapter4;
-			}
+                // Print data about the actually picked GPU
+                wprintf(L"Picked GPU: %s\n", actualDescriptor.Description);
 
-			GraphicsDevice create_graphics_device(bool enableDebug)
-			{
-				// Grab the allocator
-				bento::IAllocator* allocator = bento::common_allocator();
-				assert(allocator != nullptr);
+                // Do not forget to release the resources
+                dxgiFactory->Release();
 
-				// Debug Interface
-				ID3D12Debug* debugInterface = nullptr;
-				if (enableDebug)
-				{
-					assert_msg(D3D12GetDebugInterface(IID_PPV_ARGS(&debugInterface)) == S_OK, "Debug layer failed to initialize");
-					debugInterface->EnableDebugLayer();
-				}
+                // Return the adapter
+                return dxgiAdapter4;
+            }
 
-				// Grab the right adapter
-				IDXGIAdapter4* adapter = GetAdapter();
+            GraphicsDevice create_graphics_device(bool enableDebug, uint32_t preferred_adapter, bool stable_power_state)
+            {
+                // Grab the allocator
+                bento::IAllocator* allocator = bento::common_allocator();
+                assert(allocator != nullptr);
 
-				// Create the graphics device and ensure it's been succesfully created
-				ID3D12Device2* d3d12Device2;
-				assert_msg(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d12Device2)) == S_OK, "D3D12 Device creation failed.");
+                // Debug Interface
+                ID3D12Debug* debugInterface = nullptr;
+                if (enableDebug)
+                {
+                    assert_msg(D3D12GetDebugInterface(IID_PPV_ARGS(&debugInterface)) == S_OK, "Debug layer failed to initialize");
+                    debugInterface->EnableDebugLayer();
+                }
 
-				// Do not forget to release the adapter
-				adapter->Release();
+                // Grab the right adapter
+                IDXGIAdapter4* adapter = GetAdapter(preferred_adapter);
 
-				// Create the graphics device internal structure
-				DX12GraphicsDevice* dx12_graphicsDevice = bento::make_new<DX12GraphicsDevice>(*allocator);
-				dx12_graphicsDevice->device = d3d12Device2;
-				dx12_graphicsDevice->debugLayer = debugInterface;
-				for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
-					dx12_graphicsDevice->descriptorSize[i] = d3d12Device2->GetDescriptorHandleIncrementSize((D3D12_DESCRIPTOR_HEAP_TYPE)i);
+                // Create the graphics device and ensure it's been succesfully created
+                ID3D12Device2* d3d12Device2;
+                assert_msg(D3D12CreateDevice(adapter, D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&d3d12Device2)) == S_OK, "D3D12 Device creation failed.");
 
-				return (GraphicsDevice)dx12_graphicsDevice;
-			}
+                // Do not forget to release the adapter
+                adapter->Release();
 
-			void destroy_graphics_device(GraphicsDevice graphicsDevice)
-			{
-				DX12GraphicsDevice* dx12_device = (DX12GraphicsDevice*)graphicsDevice;
-				dx12_device->device->Release();
-				if (dx12_device->debugLayer != nullptr)
-					dx12_device->debugLayer->Release();
-			}
-		}
-	}
+                // Create the graphics device internal structure
+                DX12GraphicsDevice* dx12_graphicsDevice = bento::make_new<DX12GraphicsDevice>(*allocator);
+                dx12_graphicsDevice->device = d3d12Device2;
+                dx12_graphicsDevice->debugLayer = debugInterface;
+                for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+                    dx12_graphicsDevice->descriptorSize[i] = d3d12Device2->GetDescriptorHandleIncrementSize((D3D12_DESCRIPTOR_HEAP_TYPE)i);
+
+                // Enable stable power state for profiling
+                dx12_graphicsDevice->device->SetStablePowerState(stable_power_state);
+
+                return (GraphicsDevice)dx12_graphicsDevice;
+            }
+
+            void destroy_graphics_device(GraphicsDevice graphicsDevice)
+            {
+                DX12GraphicsDevice* dx12_device = (DX12GraphicsDevice*)graphicsDevice;
+                dx12_device->device->Release();
+                if (dx12_device->debugLayer != nullptr)
+                    dx12_device->debugLayer->Release();
+            }
+        }
+    }
 }
